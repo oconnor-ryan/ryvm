@@ -14,10 +14,11 @@
 :shl   .asciz "Shl Int"
 :shr   .asciz "Shr Int"
 
-:addf   .asciz "Addf Int"
-
-
-
+:addf   .asciz "Add Float"
+:subf   .asciz "Sub Float"
+:mulf   .asciz "Mul Float"
+:divf   .asciz "Div Float"
+:remf   .asciz "Rem Float"
 
 
 .text
@@ -87,4 +88,27 @@ PCR W1 #addf
 SYS 3 ; print string
 ADDF W1 W2 W3
 SYS 2
+
+PCR W1 #subf
+SYS 3 ; print string
+SUBF W1 W2 W3
+SYS 2
+
+PCR W1 #mulf
+SYS 3 ; print string
+MULF W1 W2 W3
+SYS 2
+
+PCR W1 #divf
+SYS 3 ; print string
+DIVF W1 W2 W3
+SYS 2
+
+
+PCR W1 #remf
+SYS 3 ; print string
+REMF W1 W2 W3
+SYS 2
+
+
 SYS 0
