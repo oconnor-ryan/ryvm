@@ -157,8 +157,6 @@ struct ryvm_assembler_state {
 
 
 
-  struct memory_array_builder temp;
-  struct memory_allocator *mem;
 
   uint64_t current_relative_address;
 

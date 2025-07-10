@@ -217,7 +217,6 @@ void ryvm_assembler_free(struct ryvm_assembler_state *asm_state) {
   memory_array_builder_free(&asm_state->labels);
   memory_array_builder_free(&asm_state->reloc_entries);
 
-  memory_free(asm_state->mem);
   ryvm_lexer_free(&asm_state->lex);
 
 }
@@ -1019,16 +1018,9 @@ int ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
     return 0;
   }
 
-  asm_state.mem = memory_create(100, MEMORY_ALLOCATOR_REGION_REALLOC);
-  if(asm_state.mem == NULL) {
-    memory_array_builder_free(&asm_state.labels);
-    ryvm_lexer_free(&asm_state.lex);
-    return 0;
-  }
 
   if(!memory_array_builder_init(&asm_state.data, 100, sizeof(struct ryvm_assembler_data_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
     memory_array_builder_free(&asm_state.labels);
-    memory_free(asm_state.mem);
     ryvm_lexer_free(&asm_state.lex);
     return 0;
   }
@@ -1036,7 +1028,6 @@ int ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
   if(!memory_array_builder_init(&asm_state.text, 100, sizeof(struct ryvm_assembler_text_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
     memory_array_builder_free(&asm_state.labels);
     memory_array_builder_free(&asm_state.data);
-    memory_free(asm_state.mem);
     ryvm_lexer_free(&asm_state.lex);
     return 0;
   }
@@ -1045,7 +1036,6 @@ int ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
     memory_array_builder_free(&asm_state.labels);
     memory_array_builder_free(&asm_state.data);
     memory_array_builder_free(&asm_state.text);
-    memory_free(asm_state.mem);
     ryvm_lexer_free(&asm_state.lex);
     return 0;
   }

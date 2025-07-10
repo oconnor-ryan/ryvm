@@ -174,14 +174,25 @@ int ryvm_lexer_init(struct ryvm_lexer *lexer, FILE *src) {
   lexer->has_unparsed_token = 0;
 
 
-  lexer->mem = memory_create(500, MEMORY_ALLOCATOR_REGION_REALLOC);
+  /* WARNING, Do NOT USE MEMORY_ALLOCATOR_REGION_REALLOC*/
+  // Remember that reallocating the memory block does not update the pointers that point
+  //to entries in that block.
+  //This is why we had undefined behavior before, After reallocation, all of our char pointers for labels 
+  //pointed to memory that was freed after it was moved to a new block.
+  lexer->mem = memory_create(500, MEMORY_ALLOCATOR_REGION_LINKED_LIST);
   if(lexer->mem == NULL) {
     return 0;
   }
+
+  //using realloc here is fine since we only grab a pointer from this memory block
+  //after the string builder is done.
   if(!memory_string_builder_init(&lexer->temp_word, 20, MEMORY_ALLOCATOR_REGION_REALLOC)) {
     memory_free(lexer->mem);
     return 0;
   }
+  
+  //using realloc here is fine since we only grab a pointer from this memory block
+  //after the string builder is done.
   lexer->temp_mem = memory_create(20, MEMORY_ALLOCATOR_REGION_REALLOC);
   if(lexer->temp_mem == NULL) {
     memory_free(lexer->mem);
