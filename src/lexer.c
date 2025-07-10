@@ -88,8 +88,8 @@ int ryvm_lexer_parse_as_number(char *num_str, uint32_t num_str_len, union num *d
     if(!isdigit(num_str[i])) {
       if(num_str[i] == '.') {
 
-        //not a proper number
-        if(is_float == 0) {
+        //We already encountered 1 '.', so this is not a properly formated real number
+        if(is_float) {
           return 0;
         }
 
@@ -182,6 +182,12 @@ int ryvm_lexer_init(struct ryvm_lexer *lexer, FILE *src) {
     memory_free(lexer->mem);
     return 0;
   }
+  lexer->temp_mem = memory_create(20, MEMORY_ALLOCATOR_REGION_REALLOC);
+  if(lexer->temp_mem == NULL) {
+    memory_free(lexer->mem);
+    memory_array_builder_free(&lexer->temp_word);
+    return 0;
+  }
   return 1;
 
 }
@@ -189,6 +195,8 @@ int ryvm_lexer_init(struct ryvm_lexer *lexer, FILE *src) {
 void ryvm_lexer_free(struct ryvm_lexer *lexer) {
   memory_array_builder_free(&lexer->temp_word);
   memory_free(lexer->mem);
+  memory_free(lexer->temp_mem);
+
 }
 
 struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
@@ -223,8 +231,9 @@ struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
   
   
   #define RYVM_LEXER_MAC_GRAB_WORD(lexer, start_char, tok, word, word_len) \
+    memory_reset(lexer->temp_mem); \
     if(!ryvm_lexer_read_word(lexer, start_char)) {lexer->lexer_failed = 1; return tok;} \
-    word = memory_string_builder_finish_build_and_copy_string(&lexer->temp_word, lexer->mem); \
+    word = memory_string_builder_finish_build_and_copy_string(&lexer->temp_word, lexer->temp_mem); \
     if(word == NULL) {lexer->lexer_failed = 1; return tok;} \
     word_len = strlen(word);
 
@@ -267,6 +276,7 @@ struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
         return tok;
       }
 
+      //string literals and labels must be stored in lexer's main memory.
       tok.d.string_lit = memory_string_builder_finish_build_and_copy_string(&lexer->temp_word, lexer->mem); 
       if(tok.d.string_lit == NULL) {
         lexer->lexer_failed = 1;
@@ -287,6 +297,7 @@ struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
     case ':': {
       RYVM_LEXER_MAC_GRAB_WORD(lexer, start_char, tok, word, word_len)
 
+      //string literals and labels must be stored in lexer's main memory.
       tok.d.label_name = memory_alloc(lexer->mem, word_len); //note that since @ is removed, this will fit the label, including the NULL character
       tok.tag = RYVM_TOKEN_LABEL;
       if(tok.d.label_name == NULL) {
@@ -308,6 +319,7 @@ struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
     case '#': {
       RYVM_LEXER_MAC_GRAB_WORD(lexer, start_char, tok, word, word_len)
 
+      //string literals and labels must be stored in lexer's main memory.
       tok.d.label_name = memory_alloc(lexer->mem, word_len); //note that since = is removed, this will fit the label, including the NULL character
       tok.tag = RYVM_TOKEN_LABEL_PC_OFF_EXPR;
 
@@ -328,6 +340,7 @@ struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
     case '@': {
       RYVM_LEXER_MAC_GRAB_WORD(lexer, start_char, tok, word, word_len)
 
+      //string literals and labels must be stored in lexer's main memory.
       tok.d.label_name = memory_alloc(lexer->mem, word_len); //note that since = is removed, this will fit the label, including the NULL character
       tok.tag = RYVM_TOKEN_LABEL_ADR_OF_EXPR;
 

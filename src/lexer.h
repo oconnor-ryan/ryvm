@@ -21,9 +21,6 @@ enum ryvm_token_tag {
   RYVM_TOKEN_SECTION_DATA_QUAD,
   RYVM_TOKEN_SECTION_DATA_OCT,
   RYVM_TOKEN_SECTION_DATA_ASCIZ,
-  RYVM_TOKEN_SECTION_DATA_FLOAT16_HEADER,
-  RYVM_TOKEN_SECTION_DATA_FLOAT32_HEADER,
-  RYVM_TOKEN_SECTION_DATA_FLOAT64_HEADER,
 
   RYVM_TOKEN_SECTION_TEXT,
 
@@ -73,8 +70,10 @@ struct ryvm_lexer {
 
   int lexer_failed;
   struct memory_array_builder temp_word;
+  struct memory_allocator *temp_mem; //only purpose is to allow temp array builder to put a word into a contiguous block
 
-  struct memory_allocator *mem;
+  struct memory_allocator *mem; //used to store label names and strings
+  
 
   FILE *src;
 

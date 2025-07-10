@@ -12,7 +12,7 @@ struct memory_array_builder {
 
 //initialize and allocate memory for the array builder.
 //returns zero on failure to allocate memory for builder
-int memory_array_builder_init(struct memory_array_builder* uninit_builder, size_t capacity, const size_t element_size, enum memory_allocator_tag alloc_type);
+int memory_array_builder_init(struct memory_array_builder* uninit_builder, size_t element_capacity, const size_t element_size, enum memory_allocator_tag alloc_type);
 
 
 //append a single element to the array.

@@ -1,8 +1,8 @@
 #include "array_builder.h"
 #include <assert.h>
 
-int memory_array_builder_init(struct memory_array_builder* uninit_builder, size_t capacity, const size_t element_size, enum memory_allocator_tag alloc_type) {
-  uninit_builder->mem = memory_create(capacity, alloc_type);
+int memory_array_builder_init(struct memory_array_builder* uninit_builder, size_t element_capacity, const size_t element_size, enum memory_allocator_tag alloc_type) {
+  uninit_builder->mem = memory_create(element_capacity * element_size, alloc_type);
   if(uninit_builder->mem == NULL) {
     return 0;
   }
@@ -38,7 +38,7 @@ void* memory_array_builder_get_element_at(struct memory_array_builder* builder, 
     case MEMORY_ALLOCATOR_REGION_REALLOC:
       return builder->mem->d.region_realloc.data_ptr + (index * builder->element_size);
     case MEMORY_ALLOCATOR_REGION_LINKED_LIST: {
-      //each element is a contiguous block that is stored inside 1 or more non-contiguous
+      //each element is a contiguous block that is stored inside 1 of many non-contiguous
       //nodes. We need to check each node, find the number of elements stored inside each node,
       //and use that information to figure out which node contains the element at the specified
       //index. We will also need to determine the element's location inside the node itself.

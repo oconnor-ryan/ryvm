@@ -1,29 +1,90 @@
 .max_stack_size 1
+.data
+:float1 .word 1.5
+:float2 .word -2.5
+
+:add   .asciz "Add Int"
+:sub   .asciz "Sub Int"
+:mul   .asciz "Mul Int"
+:div   .asciz "Div Int"
+:rem   .asciz "Rem Int"
+:and   .asciz "And Int"
+:or   .asciz "Or Int"
+:xor   .asciz "Xor Int"
+:shl   .asciz "Shl Int"
+:shr   .asciz "Shr Int"
+
+:addf   .asciz "Addf Int"
+
+
+
+
+
 .text
 LDI W0 0
 LDI W4 1
 LDI W2 3 ; 0b011
 LDI W3 5 ; 0b101         0110  1111 1001
+
+PCR W1 #add
+SYS 3 ; print string
 ADD W1 W2 W3
 SYS 1
+
+PCR W1 #sub
+SYS 3 ; print string
 SUB W1 W3 W2 
 SYS 1
+
+PCR W1 #mul
+SYS 3 ; print string
 MUL W1 W2 W3 
 SYS 1
+
+PCR W1 #div
+SYS 3 ; print string
 DIV W1 W3 W2
 SYS 1
+
+PCR W1 #rem
+SYS 3 ; print string
 REM W1 W2 W3
 SYS 1
+
+PCR W1 #and
+SYS 3 ; print string
 AND W1 W2 W3 
 SYS 1
+
+PCR W1 #or
+SYS 3 ; print string
 OR W1 W2 W3 
 SYS 1
+
+PCR W1 #xor
+SYS 3 ; print string
 XOR W1 W2 W3 
 SYS 1
 XORI W1 W1 -1
 SYS 1
+
+PCR W1 #shl
+SYS 3 ; print string
 SHL W1 W2 W3 
 SYS 1
+
+PCR W1 #shr
+SYS 3 ; print string
 SHR W1 W2 W4
 SYS 1
+
+PCR W2 #float1
+LDA W2 W2 0
+PCR W3 #float2 
+LDA W3 W3 0
+
+PCR W1 #addf
+SYS 3 ; print string
+ADDF W1 W2 W3
+SYS 2
 SYS 0

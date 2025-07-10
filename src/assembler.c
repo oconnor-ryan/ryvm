@@ -130,9 +130,6 @@ void ryvm_assembler_print_data_entry(struct ryvm_assembler_data_entry *entry) {
     case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE: printf("%d", entry->d.num.u16); break;
     case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_4BYTE: printf("%d", entry->d.num.u32); break;
     case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE: printf("%lld", entry->d.num.u64); break;
-    case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE_FLOAT: printf("%f", entry->d.num.f16); break;
-    case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_4BYTE_FLOAT: printf("%f", entry->d.num.f32); break;
-    case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE_FLOAT: printf("%lf", entry->d.num.f64); break;
 
     default: assert(0);
   }
@@ -238,8 +235,9 @@ int ryvm_assembler_add_data_to_text_section(struct ryvm_assembler_state *asm_sta
 }
 
 struct ryvm_assembler_label* ryvm_assembler_find_label(struct ryvm_assembler_state *asm_state, char *label) {
+  struct ryvm_assembler_label *label_data;
   for(uint32_t i = 0; i < asm_state->labels.array_length; i++) {
-    struct ryvm_assembler_label *label_data = memory_array_builder_get_element_at(&asm_state->labels, i);
+    label_data = memory_array_builder_get_element_at(&asm_state->labels, i);
     if(strcmp(label, label_data->label) == 0) {
       return label_data;
     }
@@ -305,12 +303,9 @@ enum ryvm_assembler_data_entry_type ryvm_assembler_token_data_header_to_data_ent
     case RYVM_TOKEN_SECTION_DATA_DOUBLE:         return RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE;
     case RYVM_TOKEN_SECTION_DATA_QUAD:           return RYVM_ASSEMBLER_DATA_ENTRY_TYPE_4BYTE;
     case RYVM_TOKEN_SECTION_DATA_OCT:            return RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE;
-    case RYVM_TOKEN_SECTION_DATA_FLOAT16_HEADER: return RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE_FLOAT;
-    case RYVM_TOKEN_SECTION_DATA_FLOAT32_HEADER: return RYVM_ASSEMBLER_DATA_ENTRY_TYPE_4BYTE_FLOAT;
-    case RYVM_TOKEN_SECTION_DATA_FLOAT64_HEADER: return RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE_FLOAT;
+    case RYVM_TOKEN_SECTION_DATA_ASCIZ:          return RYVM_ASSEMBLER_DATA_ENTRY_TYPE_ASCII_Z;
     default: 
       assert(0);
-      return RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE_FLOAT;
   }
 }
 
@@ -320,9 +315,6 @@ uint8_t ryvm_assembler_data_entry_type_bytewidth(enum ryvm_assembler_data_entry_
     case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE:       return 2;
     case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_4BYTE:       return 4;
     case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE:       return 8;
-    case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE_FLOAT: return 2;
-    case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_4BYTE_FLOAT: return 4;
-    case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE_FLOAT: return 8;
     default: 
       assert(0);
       return 0;
@@ -333,27 +325,22 @@ uint8_t ryvm_assembler_data_entry_type_bytewidth(enum ryvm_assembler_data_entry_
 //own data entry 
 int ryvm_assembler_parse_number_list(struct ryvm_assembler_state *asm_state, enum ryvm_assembler_data_entry_type data_type, int (*add_entry_func)(struct ryvm_assembler_state *s, struct ryvm_assembler_data_entry *e)) {
   uint8_t bytewidth = ryvm_assembler_data_entry_type_bytewidth(data_type);
-  uint8_t expect_integer = data_type == RYVM_ASSEMBLER_DATA_ENTRY_TYPE_1BYTE
-  || data_type == RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE
-  || data_type == RYVM_ASSEMBLER_DATA_ENTRY_TYPE_4BYTE
-  || data_type == RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE;
-
   struct ryvm_assembler_data_entry e;
   uint64_t num_nums = 0; 
   while(1) { 
     struct ryvm_token tok = ryvm_lexer_get_token(&asm_state->lex); 
     //check if next token is valid. If not, assume we reached the end of the list of numbers
     //and save this token for future parsing.
-    if((expect_integer && tok.tag == RYVM_TOKEN_INT_LITERAL) || (!expect_integer && tok.tag != RYVM_TOKEN_FLOAT_LITERAL)) {
+    if(tok.tag == RYVM_TOKEN_INT_LITERAL || tok.tag == RYVM_TOKEN_FLOAT_LITERAL) {
       e.tag = data_type; 
       e.d.num = tok.d.num;
       e.using_placeholder = 0;
-    } else if(expect_integer && tok.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
+    } else if(tok.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
       e.tag = RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE;
       if(!ryvm_assembler_add_label_expr(asm_state, tok.d.label_name)) return 0;
       e.d.placeholder = tok;
       e.using_placeholder = 1;
-    } else if(expect_integer && tok.tag == RYVM_TOKEN_LABEL_ADR_OF_EXPR) {
+    } else if(tok.tag == RYVM_TOKEN_LABEL_ADR_OF_EXPR) {
       e.tag = RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE;
       if(!ryvm_assembler_add_label_expr(asm_state, tok.d.label_name)) return 0;
       e.d.placeholder = tok;
@@ -375,11 +362,7 @@ int ryvm_assembler_parse_number_list(struct ryvm_assembler_state *asm_state, enu
     num_nums++;
   } 
   if(num_nums == 0) { 
-    if(expect_integer) {
-      ryvm_assembler_error(asm_state, "Expected integer."); 
-    } else {
-      ryvm_assembler_error(asm_state, "Expected float."); 
-    }
+    ryvm_assembler_error(asm_state, "Expected integer or float literal."); 
     return 0;
   } 
 
@@ -434,10 +417,7 @@ int ryvm_parse_data_entry_any_section(struct ryvm_assembler_state *asm_state, st
     case RYVM_TOKEN_SECTION_DATA_BYTE:
     case RYVM_TOKEN_SECTION_DATA_DOUBLE:
     case RYVM_TOKEN_SECTION_DATA_QUAD:
-    case RYVM_TOKEN_SECTION_DATA_OCT: 
-    case RYVM_TOKEN_SECTION_DATA_FLOAT16_HEADER:
-    case RYVM_TOKEN_SECTION_DATA_FLOAT32_HEADER:
-    case RYVM_TOKEN_SECTION_DATA_FLOAT64_HEADER: {
+    case RYVM_TOKEN_SECTION_DATA_OCT: {
       ryvm_assembler_parse_number_list(asm_state, ryvm_assembler_token_data_header_to_data_entry_type(tok.tag), add_entry_func);
       if(asm_state->failed) {
         return 0;
@@ -451,7 +431,7 @@ int ryvm_parse_data_entry_any_section(struct ryvm_assembler_state *asm_state, st
         ryvm_assembler_error(asm_state, "Expected a string literal!");
         return 0;
       }
-      e.tag = ryvm_assembler_token_data_header_to_data_entry_type(tok.tag);
+      e.tag = RYVM_ASSEMBLER_DATA_ENTRY_TYPE_ASCII_Z; //ryvm_assembler_token_data_header_to_data_entry_type(tok.tag);
       e.d.ascii = tok.d.string_lit; //note that actual string data is stored in lexer's memory
       e.using_placeholder = 0;
       //insert string literal to output file and increase data size.
@@ -1030,7 +1010,7 @@ int ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
   asm_state.failed = 0;
   asm_state.current_relative_address = 0; 
 
-  if(!memory_array_builder_init(&asm_state.labels, 100 * sizeof(struct ryvm_assembler_label), sizeof(struct ryvm_assembler_label), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
+  if(!memory_array_builder_init(&asm_state.labels, 100, sizeof(struct ryvm_assembler_label), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
     return 0;
   }
 
@@ -1046,14 +1026,14 @@ int ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
     return 0;
   }
 
-  if(!memory_array_builder_init(&asm_state.data, 100 * sizeof(struct ryvm_assembler_data_entry), sizeof(struct ryvm_assembler_data_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
+  if(!memory_array_builder_init(&asm_state.data, 100, sizeof(struct ryvm_assembler_data_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
     memory_array_builder_free(&asm_state.labels);
     memory_free(asm_state.mem);
     ryvm_lexer_free(&asm_state.lex);
     return 0;
   }
 
-  if(!memory_array_builder_init(&asm_state.text, 100 * sizeof(struct ryvm_assembler_text_entry), sizeof(struct ryvm_assembler_text_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
+  if(!memory_array_builder_init(&asm_state.text, 100, sizeof(struct ryvm_assembler_text_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
     memory_array_builder_free(&asm_state.labels);
     memory_array_builder_free(&asm_state.data);
     memory_free(asm_state.mem);
@@ -1061,7 +1041,7 @@ int ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
     return 0;
   }
 
-  if(!memory_array_builder_init(&asm_state.reloc_entries, 100 * sizeof(struct ryvm_assembler_reloc_entry), sizeof(struct ryvm_assembler_reloc_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
+  if(!memory_array_builder_init(&asm_state.reloc_entries, 100, sizeof(struct ryvm_assembler_reloc_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
     memory_array_builder_free(&asm_state.labels);
     memory_array_builder_free(&asm_state.data);
     memory_array_builder_free(&asm_state.text);

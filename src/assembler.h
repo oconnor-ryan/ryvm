@@ -79,10 +79,6 @@ enum ryvm_assembler_data_entry_type {
   RYVM_ASSEMBLER_DATA_ENTRY_TYPE_4BYTE,
   RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE,
 
-  RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE_FLOAT,
-  RYVM_ASSEMBLER_DATA_ENTRY_TYPE_4BYTE_FLOAT,
-  RYVM_ASSEMBLER_DATA_ENTRY_TYPE_8BYTE_FLOAT,
-
   RYVM_ASSEMBLER_DATA_ENTRY_TYPE_ASCII_Z, //null terminated 8bit ascii string
 
   RYVM_ASSEMBLER_DATA_ENTRY_TYPE_SPACE //represents a variable number of uninitialized bytes.
@@ -93,11 +89,6 @@ struct ryvm_assembler_label {
   char *label;
   uint64_t relative_address; //the actual value
   uint8_t has_address;
-
-  //if the relative address is out of range, these values will be set so that
-  //the label's address can be fetched from a nearby pool instead
-  uint64_t nearest_pool_index;
-  uint64_t nearest_pool_address;
 };
 
 struct ryvm_assembler_reloc_entry {

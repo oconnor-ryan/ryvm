@@ -673,6 +673,14 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
           case 1: 
             printf("%lld\n", vm->gen_registers[1]);
             break;
+          case 2: {
+            double *f = (double*) &vm->gen_registers[1];
+            printf("%lf\n", *f);
+            break;
+          }
+          case 3:
+            printf("%s\n", (char*) vm->gen_registers[1]);
+            break;
           default:
             goto syscall_fail;
         }
