@@ -92,7 +92,14 @@ int main(int argc, const char **argv) {
 
 
     FILE *in = fopen(filename, "r");
-    ryvm_assemble_to_bytecode(in, out);
+
+    if(!ryvm_assemble_to_bytecode(in, out)) {
+      printf("Failed to assembly bytecode for file %s!\n", filename);
+      fclose(in);
+      fclose(out);
+      free(output_filename);
+      return 1;
+    }
 
     //dont forget to fseek back to beginning of file...
     fseek(out, 0, SEEK_SET);
@@ -103,6 +110,7 @@ int main(int argc, const char **argv) {
     printf("Program result: %lld\n", ryvm_vm_run(&vm));
     printf("======= END PROGRAM FOR %s =======\n\n", argv[i]);
     ryvm_vm_free(&vm);
+
 
 
     fclose(in);

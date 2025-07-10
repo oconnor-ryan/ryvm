@@ -5,12 +5,35 @@
 #include "helper.h"
 #include <stdlib.h>
 
-//the smallest negative offset for a PC-relative offset
-#define MAX_PC_REL_OFFSET_NEG 32768
+//the largest positive and negative offset for 8-bit integer
+#define MAX_PC_REL_8_OFFSET_NEG 128
+#define MAX_PC_REL_8_OFFSET_POS 127
 
-//the largest positive offset for a PC-relative offset
-#define MAX_PC_REL_OFFSET_POS 32767
+//the largest positive and negative offset for 16-bit integer
+#define MAX_PC_REL_16_OFFSET_NEG 32768
+#define MAX_PC_REL_16_OFFSET_POS 32767
 
+//largest positive and negative offset for 24-bit integer
+#define MAX_PC_REL_24_OFFSET_NEG 8388608
+#define MAX_PC_REL_24_OFFSET_POS 8388607
+
+//constants
+
+//config
+const char *RYVM_CONFIG_MAX_STACK = ".max_stack_size";
+//code
+const char *RYVM_CODE_HEADER = ".text";
+
+//const char *RYVM_CONST_DATA_HEADER = ".const"; //immutable version of .data
+const char *RYVM_DATA_HEADER = ".data";
+
+const char *RYVM_DATA_BYTE_HEADER = ".eword";
+const char *RYVM_DATA_2BYTE_HEADER = ".qword";
+const char *RYVM_DATA_4BYTE_HEADER = ".hword";
+const char *RYVM_DATA_8BYTE_HEADER = ".word";
+
+
+const char *RYVM_DATA_ASCIZ_HEADER = ".asciz";
 
 /*
   The purpose of this compiler is to take human-readable RyByteCode and serialize it into its binary form. 
@@ -23,23 +46,57 @@
 */
 
 
-
-
 //returns 0 if offset is out of range of the maximum offset size. Returns 1 if offset was successfully calculated
 //and in range. 
-int ryvm_assembler_relative_pc_offset(uint64_t a, uint64_t dest, int16_t *offset) {
+int ryvm_assembler_relative_pc_offset8(uint64_t ins_rel_adr, uint64_t dest, int8_t *offset) {
   // need to add positive offset value to 'a' to get to dest.
-  if(dest > a) {
-    uint64_t off64 = dest - a;
-    *offset = (int16_t) off64;
-    return off64 <= MAX_PC_REL_OFFSET_POS;
+  if(dest > ins_rel_adr) {
+    uint64_t off64 = dest - ins_rel_adr - RYVM_INS_SIZE; //must subtract since PC is always 4 bytes ahead of current instruction
+    *offset = (int8_t) off64;
+    return off64 <= MAX_PC_REL_8_OFFSET_POS;
   }
 
   //need to add negative offset value from a to get to dest
-  uint64_t off64 = a - dest;
-  *offset = - (int64_t) off64;
-  return off64 <= MAX_PC_REL_OFFSET_NEG;
+  uint64_t off64 = ins_rel_adr - dest + RYVM_INS_SIZE; //must add since PC is always 4 bytes ahead of current instruction
+  *offset = - (int8_t) off64;
+  return off64 <= MAX_PC_REL_8_OFFSET_NEG;
 }
+
+//returns 0 if offset is out of range of the maximum offset size. Returns 1 if offset was successfully calculated
+//and in range. 
+int ryvm_assembler_relative_pc_offset16(uint64_t ins_rel_adr, uint64_t dest, int16_t *offset) {
+  // need to add positive offset value to 'a' to get to dest.
+  if(dest > ins_rel_adr) {
+    uint64_t off64 = dest - ins_rel_adr - RYVM_INS_SIZE; //must subtract since PC is always 4 bytes ahead of current instruction
+    *offset = (int16_t) off64;
+    return off64 <= MAX_PC_REL_16_OFFSET_POS;
+  }
+
+  //need to add negative offset value from a to get to dest
+  uint64_t off64 = ins_rel_adr - dest + RYVM_INS_SIZE; //must add since PC is always 4 bytes ahead of current instruction
+  *offset = - (int16_t) off64;
+  return off64 <= MAX_PC_REL_16_OFFSET_NEG;
+}
+
+//returns 0 if offset is out of range of the maximum offset size. Returns 1 if offset was successfully calculated
+//and in range. 
+int ryvm_assembler_relative_pc_offset24(uint64_t ins_rel_adr, uint64_t dest, int32_t *offset) {
+  // need to add positive offset value to 'a' to get to dest.
+  if(dest > ins_rel_adr) {
+    uint64_t off64 = dest - ins_rel_adr - RYVM_INS_SIZE; //must subtract since PC is always 4 bytes ahead of current instruction
+    *offset = (int32_t) off64;
+    return off64 <= MAX_PC_REL_24_OFFSET_POS;
+  }
+
+  //need to add negative offset value from a to get to dest
+  uint64_t off64 = ins_rel_adr - dest + RYVM_INS_SIZE; //must add since PC is always 4 bytes ahead of current instruction
+  *offset = - (int32_t) off64;
+  return off64 <= MAX_PC_REL_24_OFFSET_NEG;
+}
+
+
+
+
 
 void ryvm_assembler_write_and_update_address(struct ryvm_assembler_state *asm_state, uint64_t num_bytes, void *src_ptr) {
   fwrite(src_ptr, num_bytes, 1, asm_state->output);
@@ -104,17 +161,39 @@ void ryvm_assembler_print(struct ryvm_assembler_state *asm_state) {
       enum ryvm_opcode op = (enum ryvm_opcode) entry->d.ins.opcode;
       const char *ins_name = ryvm_opcode_op_to_str(op);
       printf("%s ", ins_name);
-      if(op == RYVM_OP_PCA || op == RYVM_OP_LDI) {
-        ryvm_assembler_print_register(entry->d.ins.regs[0]);
-        printf(" ");
-        int16_t *offset = (int16_t*) (entry->d.ins.regs + 1);
-        printf("%d ", *offset);
-      } else {
-        uint8_t arity = ryvm_opcode_get_arity(op);
-        for(uint8_t j = 0; j < arity; j++) {
-          ryvm_assembler_print_register(entry->d.ins.regs[j]);
-          printf(" ");
+
+      switch(ryvm_opcode_get_ins_format(op)) {
+        case RYVM_INS_FORMAT_R0: {
+          //C does not allow us to define a 24-bit number without using a struct, so we'll just use a 32 bit number
+          int32_t *offset = (int32_t*) (entry->d.ins.regs);
+          printf("%d ", *offset);
+          break;
         }
+        case RYVM_INS_FORMAT_R1: {
+          ryvm_assembler_print_register(entry->d.ins.regs[0]);
+          printf(" ");
+          int16_t *offset = (int16_t*) (entry->d.ins.regs + 1);
+          printf("%d ", *offset);
+          break;
+        }
+        case RYVM_INS_FORMAT_R2: {
+          ryvm_assembler_print_register(entry->d.ins.regs[0]);
+          printf(" ");
+          ryvm_assembler_print_register(entry->d.ins.regs[1]);
+          printf(" ");
+          int8_t *offset = (int8_t*) (entry->d.ins.regs + 2);
+          printf("%d ", *offset);
+          break;
+        }
+        case RYVM_INS_FORMAT_R3: {
+          for(uint8_t j = 0; j < 3; j++) {
+            ryvm_assembler_print_register(entry->d.ins.regs[j]);
+            printf(" ");
+          }
+          break;
+        }
+
+        default: assert(0);
       }
       printf("\n");
 
@@ -451,56 +530,118 @@ int ryvm_parse_text_entry(struct ryvm_assembler_state *asm_state, struct ryvm_to
   //if this is opcode
   if(tok.tag == RYVM_TOKEN_OPCODE) {
 
-    uint8_t arity = ryvm_opcode_get_arity(tok.d.opcode);
-
-
     struct ryvm_assembler_text_entry entry;
     entry.is_ins = 1;
-
-    uint8_t only_reg_args = tok.d.opcode != RYVM_OP_LDI && tok.d.opcode != RYVM_OP_PCA;
-
-
     entry.d.ins.opcode = tok.d.opcode;
 
-    if(only_reg_args) {
-      entry.d.ins.has_placeholder = 0;
-      //gather register tokens based on opcode's arity.
-      for(uint8_t i = 0; i < arity; i++) {
-        struct ryvm_token tok = ryvm_lexer_get_token(&asm_state->lex);
+    switch(ryvm_opcode_get_ins_format(tok.d.opcode)) {
 
+      case RYVM_INS_FORMAT_R0: { // if this accepts a immediate value.
+        struct ryvm_token tok = ryvm_lexer_get_token(&asm_state->lex);
+        if(tok.tag == RYVM_TOKEN_INT_LITERAL ) {
+
+          //TODO: we will assume all integers are little endian, so grab the 3 least significant bytes
+          // Figure out a way to guarantee little endianness for all integers.
+          uint8_t *bytes = (uint8_t*) &tok.d.num.u32;
+          entry.d.ins.regs[0] = bytes[0];
+          entry.d.ins.regs[1] = bytes[1];
+          entry.d.ins.regs[2] = bytes[2];
+          entry.d.ins.has_placeholder = 0;
+          
+        } else if(tok.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
+          entry.d.ins.placeholder = tok;
+          entry.d.ins.has_placeholder = 1;
+          if(!ryvm_assembler_add_label_expr(asm_state, tok.d.label_name)) return 0;
+
+        } else {
+          ryvm_assembler_error(asm_state, "Expected Integer Literal!");
+          return 0;
+        }
+
+        break;
+      }
+
+      case RYVM_INS_FORMAT_R1: { // if this accepts a register and a immediate value.
+        struct ryvm_token tok = ryvm_lexer_get_token(&asm_state->lex);
         if(tok.tag != RYVM_TOKEN_REGISTER) {
           ryvm_assembler_error(asm_state, "Expected Register!");
           return 0;
         }
-        entry.d.ins.regs[i] = tok.d.reg;
-      }
-    }
-    // if this accepts a register and a immediate value.
-    else {
-      struct ryvm_token tok = ryvm_lexer_get_token(&asm_state->lex);
-      if(tok.tag != RYVM_TOKEN_REGISTER) {
-        ryvm_assembler_error(asm_state, "Expected Register!");
-        return 0;
-      }
-      entry.d.ins.regs[0] = tok.d.reg;
+        entry.d.ins.regs[0] = tok.d.reg;
 
 
-      tok = ryvm_lexer_get_token(&asm_state->lex);
-      if(tok.tag == RYVM_TOKEN_INT_LITERAL ) {
-        uint16_t *imm = (uint16_t*) (entry.d.ins.regs + 1);
-        *imm = tok.d.num.u16;
-        entry.d.ins.has_placeholder = 0;
+        tok = ryvm_lexer_get_token(&asm_state->lex);
+        if(tok.tag == RYVM_TOKEN_INT_LITERAL ) {
+          uint16_t *imm = (uint16_t*) (entry.d.ins.regs + 1);
+          *imm = tok.d.num.u16;
+          entry.d.ins.has_placeholder = 0;
+          
+        } else if(tok.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
+          entry.d.ins.placeholder = tok;
+          entry.d.ins.has_placeholder = 1;
+          if(!ryvm_assembler_add_label_expr(asm_state, tok.d.label_name)) return 0;
+
+        } else {
+          ryvm_assembler_error(asm_state, "Expected Integer Literal!");
+          return 0;
+        }
+
+        break;
+      }
+
+      case RYVM_INS_FORMAT_R2: { // if this accepts 2 registers and a immediate value.
+        struct ryvm_token tok = ryvm_lexer_get_token(&asm_state->lex);
+        if(tok.tag != RYVM_TOKEN_REGISTER) {
+          ryvm_assembler_error(asm_state, "Expected Register!");
+          return 0;
+        }
+        entry.d.ins.regs[0] = tok.d.reg;
+
+        tok = ryvm_lexer_get_token(&asm_state->lex);
+        if(tok.tag != RYVM_TOKEN_REGISTER) {
+          ryvm_assembler_error(asm_state, "Expected Register!");
+          return 0;
+        }
+        entry.d.ins.regs[1] = tok.d.reg;
+
+        tok = ryvm_lexer_get_token(&asm_state->lex);
+        if(tok.tag == RYVM_TOKEN_INT_LITERAL ) {
+          entry.d.ins.regs[2] = tok.d.num.u8;
+          entry.d.ins.has_placeholder = 0;
         
-      } else if(tok.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
-        entry.d.ins.placeholder = tok;
-        entry.d.ins.has_placeholder = 1;
-        if(!ryvm_assembler_add_label_expr(asm_state, tok.d.label_name)) return 0;
+        } else if(tok.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
+          entry.d.ins.placeholder = tok;
+          entry.d.ins.has_placeholder = 1;
+          if(!ryvm_assembler_add_label_expr(asm_state, tok.d.label_name)) return 0;
 
-      } else {
-        ryvm_assembler_error(asm_state, "Expected Integer Literal!");
-        return 0;
+        } else {
+          ryvm_assembler_error(asm_state, "Expected Integer Literal!");
+          return 0;
+        }
+
+        break;
       }
+
+      //can never have placeholders
+      case RYVM_INS_FORMAT_R3: {
+        entry.d.ins.has_placeholder = 0;
+        //gather register tokens 
+        for(uint8_t i = 0; i < 3; i++) {
+          struct ryvm_token tok = ryvm_lexer_get_token(&asm_state->lex);
+
+          if(tok.tag != RYVM_TOKEN_REGISTER) {
+            ryvm_assembler_error(asm_state, "Expected Register!");
+            return 0;
+          }
+          entry.d.ins.regs[i] = tok.d.reg;
+        }
+        break;
+      }
+
+      default: assert(0);
     }
+
+    
 
     if(!memory_array_builder_append_element(&asm_state->text, &entry)) {
       ryvm_assembler_error(asm_state, "Cannot allocate memory!");
@@ -538,7 +679,7 @@ int ryvm_parse_text_entry(struct ryvm_assembler_state *asm_state, struct ryvm_to
 // - Store all data entries.
 // - Store all instructions in list.
 // - Check for undefined labels
-void ryvm_assembler_pass1(struct ryvm_assembler_state *asm_state) {
+int ryvm_assembler_pass1(struct ryvm_assembler_state *asm_state) {
   struct ryvm_token tok;
   while((tok = ryvm_lexer_get_token(&asm_state->lex)).tag != RYVM_TOKEN_EOF && !asm_state->lex.lexer_failed) {
     if(tok.tag == RYVM_TOKEN_LF) {
@@ -577,12 +718,12 @@ void ryvm_assembler_pass1(struct ryvm_assembler_state *asm_state) {
   stop_parsing:
   if(asm_state->lex.lexer_failed) {
     printf("Lexer parsing failed!");
-    return;
+    return 0;
   }
 
   if(asm_state->failed) {
     printf("Assembly parsing failed!");
-    return;
+    return 0;
   }
 
   //in this pass, we should perform a check for any undefined labels
@@ -591,12 +732,15 @@ void ryvm_assembler_pass1(struct ryvm_assembler_state *asm_state) {
     if(!label->has_address) {
       ryvm_assembler_error(asm_state, "Undefined label!");
       printf("The label expression for \"%s\" is undefined!\n", label->label);
-      return;
+      return 0;
     }
   }
 
-
+  return 1;
 }
+
+
+/* Helper Functions for Pass 2 of the Assembler */
 
 int ryvm_assembler_add_reloc_entry(struct ryvm_assembler_state *state, uint64_t rel_adr_hole, uint64_t rel_adr_value) {
   struct ryvm_assembler_reloc_entry reloc;
@@ -688,6 +832,145 @@ void ryvm_assembler_serialize_state_to_file(struct ryvm_assembler_state *state) 
 }
 
 
+
+
+int ryvm_assembler_fill_placeholder_for_data_entry(struct ryvm_assembler_state *state, struct ryvm_assembler_data_entry *d, uint64_t *rel_adr_ptr) {
+  if(d->using_placeholder && d->d.placeholder.tag == RYVM_TOKEN_LABEL_ADR_OF_EXPR) {
+
+    struct ryvm_assembler_label *label = ryvm_assembler_find_label(state, d->d.placeholder.d.label_name);
+    d->d.num.u64 = label->relative_address;
+
+    if(!ryvm_assembler_add_reloc_entry(state, *rel_adr_ptr, label->relative_address)) return 0;
+    
+  }
+  if(d->using_placeholder && d->d.placeholder.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
+    struct ryvm_assembler_label *label = ryvm_assembler_find_label(state, d->d.placeholder.d.label_name);
+    //offset depends on the data type.
+
+    switch(d->tag) {
+      case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_1BYTE: {
+        int8_t offset;
+
+        if(!ryvm_assembler_relative_pc_offset8(*rel_adr_ptr, label->relative_address, &offset)) {
+          ryvm_assembler_error(state, "PC-relative offset cannot be calculated since the target label is too far away!");
+          printf("The label \"%s\" is too far away from PC %lld, use a literal pool or move the label closer to the instruction!", label->label, *rel_adr_ptr);
+          return 0;
+        }
+
+        //based on instruction format, we need to convert offset to either 8 bit, 16 bit, or 24 bit
+        d->d.num.s8 = offset;
+
+        break;
+      }
+      case RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE: {
+        int16_t offset;
+
+        if(!ryvm_assembler_relative_pc_offset16(*rel_adr_ptr, label->relative_address, &offset)) {
+          ryvm_assembler_error(state, "PC-relative offset cannot be calculated since the target label is too far away!");
+          printf("The label \"%s\" is too far away from PC %lld, use a literal pool or move the label closer to the instruction!", label->label, *rel_adr_ptr);
+          return 0;
+        }
+
+        //based on instruction format, we need to convert offset to either 8 bit, 16 bit, or 24 bit
+        d->d.num.s16 = offset;
+
+        break;
+      }
+      //use 24 bit for all other data types
+      default: {
+        int32_t offset;
+
+        if(!ryvm_assembler_relative_pc_offset24(*rel_adr_ptr, label->relative_address, &offset)) {
+          ryvm_assembler_error(state, "PC-relative offset cannot be calculated since the target label is too far away!");
+          printf("The label \"%s\" is too far away from PC %lld, use a literal pool or move the label closer to the instruction!", label->label, *rel_adr_ptr);
+          return 0;
+        }
+
+        //based on instruction format, we need to convert offset to either 8 bit, 16 bit, or 24 bit
+        d->d.num.s32 = offset;
+
+        break;
+      }
+    }
+    
+
+    //reloc entry not needed for PC-relative offsets since the offset remains the same 
+  }
+
+  //update address
+  if(d->tag == RYVM_ASSEMBLER_DATA_ENTRY_TYPE_ASCII_Z) {
+    *rel_adr_ptr += strlen(d->d.ascii)+1;
+  } else {
+    *rel_adr_ptr += ryvm_assembler_data_entry_type_bytewidth(d->tag);
+  }
+
+  return 1;
+}
+
+
+int ryvm_assembler_fill_placeholder_for_ins_entry(struct ryvm_assembler_state *state, struct ryvm_assembler_ins *ins, uint64_t *rel_adr_ptr) {
+  //try to replace placeholder with real value
+  if(ins->has_placeholder && ins->placeholder.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
+    struct ryvm_assembler_label *label = ryvm_assembler_find_label(state, ins->placeholder.d.label_name);
+
+    switch(ryvm_opcode_get_ins_format((enum ryvm_opcode) ins->opcode)) {
+      case RYVM_INS_FORMAT_R0: {
+        int32_t offset;
+
+        if(!ryvm_assembler_relative_pc_offset24(*rel_adr_ptr, label->relative_address, &offset)) {
+          ryvm_assembler_error(state, "PC-relative offset cannot be calculated since the target label is too far away!");
+          printf("The label \"%s\" is too far away from PC %lld, use a literal pool or move the label closer to the instruction!", label->label, *rel_adr_ptr);
+          return 0;
+        }
+        uint8_t *offset_bytes = (uint8_t*) &offset;
+
+        //apply offset to actual instruction
+        ins->regs[0] = offset_bytes[0];
+        ins->regs[1] = offset_bytes[1];
+        ins->regs[2] = offset_bytes[2];
+        break;
+      }
+      
+      case RYVM_INS_FORMAT_R1: {
+        int16_t offset;
+
+        if(!ryvm_assembler_relative_pc_offset16(*rel_adr_ptr, label->relative_address, &offset)) {
+          ryvm_assembler_error(state, "PC-relative offset cannot be calculated since the target label is too far away!");
+          printf("The label \"%s\" is too far away from PC %lld, use a literal pool or move the label closer to the instruction!", label->label, *rel_adr_ptr);
+          return 0;
+        }
+
+        //apply offset to actual instruction
+        int16_t *val = (int16_t*) (ins->regs + 1);
+        *val = offset;
+        break;
+      }
+
+      case RYVM_INS_FORMAT_R2: {
+        int8_t offset;
+
+        if(!ryvm_assembler_relative_pc_offset8(*rel_adr_ptr, label->relative_address, &offset)) {
+          ryvm_assembler_error(state, "PC-relative offset cannot be calculated since the target label is too far away!");
+          printf("The label \"%s\" is too far away from PC %lld, use a literal pool or move the label closer to the instruction!", label->label, *rel_adr_ptr);
+          return 0;
+        }
+
+        //apply offset to actual instruction
+        ins->regs[2] = offset;
+        break;
+      }
+
+      case RYVM_INS_FORMAT_R3: break; //there are no placeholders allowed for this instruction format.
+      default: assert(0); 
+    }
+   
+  }
+
+  *rel_adr_ptr += 4;
+
+  return 1;
+}
+
 // At pass2, no parsing/semantic/tokenizing related errors will occur.
 // However, an error can still occur with out of range pools.
 // For pass2, we:
@@ -707,35 +990,8 @@ int ryvm_assembler_pass2(struct ryvm_assembler_state *state) {
   //check data entries for any address/pc-offset placeholders that need to be replaced with actual values.
   for(uint64_t i = 0; i < state->data.array_length; i++) {
     struct ryvm_assembler_data_entry *d = memory_array_builder_get_element_at(&state->data, i);
-    if(d->using_placeholder && d->d.placeholder.tag == RYVM_TOKEN_LABEL_ADR_OF_EXPR) {
-
-      struct ryvm_assembler_label *label = ryvm_assembler_find_label(state, d->d.placeholder.d.label_name);
-      d->d.num.u64 = label->relative_address;
-
-      if(!ryvm_assembler_add_reloc_entry(state, rel_adr, label->relative_address)) return 0;
-     
-    }
-    if(d->using_placeholder && d->d.placeholder.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
-      struct ryvm_assembler_label *label = ryvm_assembler_find_label(state, d->d.placeholder.d.label_name);
-      int16_t offset;
-
-      if(!ryvm_assembler_relative_pc_offset(rel_adr, label->relative_address, &offset)) {
-        ryvm_assembler_error(state, "PC-relative offset cannot be calculated since the target label is too far away!");
-        printf("The label \"%s\" is too far away from PC %lld, use a literal pool or move the label closer to the instruction!", label->label, rel_adr);
-        return 0;
-      }
-      d->d.num.s16 = offset;
-
-      //reloc entry not needed for PC-relative offsets since the offset remains the same 
-    }
-    
-
-      
-    //update address
-    if(d->tag == RYVM_ASSEMBLER_DATA_ENTRY_TYPE_ASCII_Z) {
-      rel_adr += strlen(d->d.ascii)+1;
-    } else {
-      rel_adr += ryvm_assembler_data_entry_type_bytewidth(d->tag);
+    if(!ryvm_assembler_fill_placeholder_for_data_entry(state, d, &rel_adr)) {
+      return 0;
     }
   }
 
@@ -746,49 +1002,9 @@ int ryvm_assembler_pass2(struct ryvm_assembler_state *state) {
   for(uint64_t i = 0; i < state->text.array_length; i++) {
     struct ryvm_assembler_text_entry *e = memory_array_builder_get_element_at(&state->text, i);
     if(e->is_ins) {
-      //try to replace placeholder with real value
-      if(e->d.ins.has_placeholder && e->d.ins.placeholder.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
-        struct ryvm_assembler_label *label = ryvm_assembler_find_label(state, e->d.ins.placeholder.d.label_name);
-        int16_t offset;
-
-        if(!ryvm_assembler_relative_pc_offset(rel_adr, label->relative_address, &offset)) {
-          ryvm_assembler_error(state, "PC-relative offset cannot be calculated since the target label is too far away!");
-          printf("The label \"%s\" is too far away from PC %lld, use a literal pool or move the label closer to the instruction!", label->label, rel_adr);
-          return 0;
-        }
-
-        //apply offset to actual instruction
-        int16_t *val = (int16_t*) (e->d.ins.regs + 1);
-        *val = offset;
-      }
-
-      rel_adr += 4;
+      if(!ryvm_assembler_fill_placeholder_for_ins_entry(state, &e->d.ins, &rel_adr)) return 0;
     } else {
-      if(e->d.data.using_placeholder && e->d.data.d.placeholder.tag == RYVM_TOKEN_LABEL_ADR_OF_EXPR) {
-        struct ryvm_assembler_label *label = ryvm_assembler_find_label(state, e->d.data.d.placeholder.d.label_name);
-        e->d.data.d.num.u64 = label->relative_address;
-
-        if(!ryvm_assembler_add_reloc_entry(state, rel_adr, label->relative_address)) return 0;
-
-      }
-      if(e->d.data.using_placeholder && e->d.data.d.placeholder.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
-        struct ryvm_assembler_label *label = ryvm_assembler_find_label(state, e->d.data.d.placeholder.d.label_name);
-        int16_t offset;
-
-        if(!ryvm_assembler_relative_pc_offset(rel_adr, label->relative_address, &offset)) {
-          ryvm_assembler_error(state, "PC-relative offset cannot be calculated since the target label is too far away!");
-          printf("The label \"%s\" is too far away from PC %lld, use a literal pool or move the label closer to the instruction!", label->label, rel_adr);
-          return 0;
-        }
-        e->d.data.d.num.s16 = offset;
-      }
-
-      //update address
-      if(e->d.data.tag == RYVM_ASSEMBLER_DATA_ENTRY_TYPE_ASCII_Z) {
-        rel_adr += strlen(e->d.data.d.ascii)+1;
-      } else {
-        rel_adr += ryvm_assembler_data_entry_type_bytewidth(e->d.data.tag);
-      }
+      if(!ryvm_assembler_fill_placeholder_for_data_entry(state, &e->d.data, &rel_adr)) return 0;
     }
   }
 
@@ -805,7 +1021,7 @@ int ryvm_assembler_pass2(struct ryvm_assembler_state *state) {
 }
 
 
-void ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
+int ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
   struct ryvm_assembler_state asm_state;
   asm_state.input = in;
   asm_state.output = out;
@@ -815,26 +1031,26 @@ void ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
   asm_state.current_relative_address = 0; 
 
   if(!memory_array_builder_init(&asm_state.labels, 100 * sizeof(struct ryvm_assembler_label), sizeof(struct ryvm_assembler_label), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
-    return;
+    return 0;
   }
 
   if(!ryvm_lexer_init(&asm_state.lex, in)) {
     memory_array_builder_free(&asm_state.labels);
-    return;
+    return 0;
   }
 
   asm_state.mem = memory_create(100, MEMORY_ALLOCATOR_REGION_REALLOC);
   if(asm_state.mem == NULL) {
     memory_array_builder_free(&asm_state.labels);
     ryvm_lexer_free(&asm_state.lex);
-    return;
+    return 0;
   }
 
   if(!memory_array_builder_init(&asm_state.data, 100 * sizeof(struct ryvm_assembler_data_entry), sizeof(struct ryvm_assembler_data_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
     memory_array_builder_free(&asm_state.labels);
     memory_free(asm_state.mem);
     ryvm_lexer_free(&asm_state.lex);
-    return;
+    return 0;
   }
 
   if(!memory_array_builder_init(&asm_state.text, 100 * sizeof(struct ryvm_assembler_text_entry), sizeof(struct ryvm_assembler_text_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
@@ -842,7 +1058,7 @@ void ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
     memory_array_builder_free(&asm_state.data);
     memory_free(asm_state.mem);
     ryvm_lexer_free(&asm_state.lex);
-    return;
+    return 0;
   }
 
   if(!memory_array_builder_init(&asm_state.reloc_entries, 100 * sizeof(struct ryvm_assembler_reloc_entry), sizeof(struct ryvm_assembler_reloc_entry), MEMORY_ALLOCATOR_REGION_LINKED_LIST)) {
@@ -851,22 +1067,29 @@ void ryvm_assemble_to_bytecode(FILE *in, FILE *out) {
     memory_array_builder_free(&asm_state.text);
     memory_free(asm_state.mem);
     ryvm_lexer_free(&asm_state.lex);
-    return;
+    return 0;
   }
 
 
 
 
-  ryvm_assembler_pass1(&asm_state);
+  if(!ryvm_assembler_pass1(&asm_state)) {
+    return 0;
+  }
 
   if(asm_state.failed || asm_state.lex.lexer_failed) {
-    return;
+    return 0;
   }
 
   asm_state.sizeof_text_section = asm_state.current_relative_address - asm_state.relative_address_text_section;
   
   //ryvm_assembler_print(&asm_state);
 
-  ryvm_assembler_pass2(&asm_state);
+  if(!ryvm_assembler_pass2(&asm_state)) {
+    return 0;
+  }
+
   ryvm_assembler_free(&asm_state);
+
+  return 1;
 }

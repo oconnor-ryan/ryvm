@@ -5,84 +5,71 @@
 
 //Note: you're dead if you change the order of these.
 enum ryvm_opcode {
-  RYVM_OP_NOP,     // move value from 1 register to another.
-  RYVM_OP_MOV,     // move value from 1 register to another.
-  RYVM_OP_LDR,     // Load from address at O1 the 8 bits into B0
-  RYVM_OP_PCA,     // Get PC-relative address using a 2-byte signed offset and store it in W0
-  RYVM_OP_LDI,     // load 2-byte immediate value that's sign-extended to the specified byte-width. Can only be integers.
-  RYVM_OP_STR,     // Store B0 into address stored at O1
-  RYVM_OP_PUSH,    // Push B0 on top of stack
-  RYVM_OP_POP ,    // Pop 8bits off top of stack and store it in B0
-  RYVM_OP_ADD ,    // Add 8bit 2-s complement integers and store it in B0
-  RYVM_OP_SUB ,    // Subtract 8bit 2-s complement integers and store it in B0
-  RYVM_OP_MUL ,    // multiply 2 signed integers 
-  RYVM_OP_MULU,    // multiply 2 unsigned integers 
-  RYVM_OP_DIV ,    // divide 2 signed integers 
-  RYVM_OP_DIVU,    // divide 2 unsigned integers 
-  RYVM_OP_MOD ,    // remainder 2 signed integers 
-  RYVM_OP_MODU ,   // remainder 2 unsigned integers 
-  RYVM_OP_ADDF ,   // Add 64bit floating point and store it in O0
-  RYVM_OP_SUBF ,   // Subtract 64bit floating point and store it in O0
-  RYVM_OP_MULF ,   // Multiply 64bit floating point and store it in O0
-  RYVM_OP_DIVF ,   // Divide 64bit floating point and store it in O0
-  RYVM_OP_MODF ,   // Remainder 64bit floating point and store it in O0
-  RYVM_OP_AND,     // bitwise AND operation
-  RYVM_OP_OR ,     // bitwise OR operation
-  RYVM_OP_XOR ,    // bitwise XOR operation
-  RYVM_OP_NOT ,    // bitwise NOT
-  RYVM_OP_SHL ,    // bitwise shift left
-  RYVM_OP_SHR ,    // bitwise shift right
-  RYVM_OP_BIC ,    // clear all bits to 0 for register
-  RYVM_OP_EQ ,     // if 2 integers are equal
-  RYVM_OP_NE ,     // if 2 integers are not equal
-  RYVM_OP_GTS ,    // if left signed integer is greater than right signed integer
-  RYVM_OP_LTS ,    // if left signed integer is less than right signed integer
-  RYVM_OP_GES ,    // if left signed integer is greater or equal to right signed integer
-  RYVM_OP_LES ,    // if left signed integer is less or equal to right signed integer
-  RYVM_OP_GTU ,    // if left unsigned integer is greater than right unsigned integer
-  RYVM_OP_LTU ,    // if left unsigned integer is less than right unsigned integer
-  RYVM_OP_GEU ,    // if left unsigned integer is greater or equal to right unsigned integer
-  RYVM_OP_LEU ,    // if left unsigned integer is less or equal to right unsigned integer
-  RYVM_OP_EQF ,    // if 2 floats are equal
-  RYVM_OP_NEF ,    // if 2 floats are not equal
-  RYVM_OP_GTF ,    // if left float is greater than right float
-  RYVM_OP_LTF ,    // if left float is less than right float
-  RYVM_OP_GEF ,    // if left float is greater or equal to right float
-  RYVM_OP_LEF ,    // if left float is less or equal to right float
-  RYVM_OP_JMP ,    // unconditional jump to address at a register
-  RYVM_OP_JMPF ,   // jump if last boolean comparison was false to address at a register
-  RYVM_OP_JMPT ,   // jump if last boolean comparision was true to address at a register
-  RYVM_OP_CALL ,   // push stack pointer to stack, then jump to address at a register
-  RYVM_OP_RET,     // pop previous stack pointer and return to it.
-  RYVM_OP_END ,    // Kill the VM immediately and return a signed byte exit code
-  RYVM_OP_SYS // a external function call to call OS-specific functions in a cross-platform way. 
+  RYVM_OP_LDA,     // LDA E0, W1, #off       ; Load from address at (W1 + off) and put the 8 bits into E0
+  RYVM_OP_PCR,     // PCR W0, #1             ; Get PC-relative address using a 2-byte signed offset and store it in W0
+  RYVM_OP_LDI,     // LDI W0, #1             ; load 2-byte immediate value that's sign-extended to the specified byte-width. Can only be integers.
+  RYVM_OP_STR,     // STR E0, W1, #off       ; Store E0 into address stored at W1 + off
+  RYVM_OP_FXFP,    // FXFP W0 W1 #fixed_prec ; W0 = (float) W1; where #fixed_prec[0] determines if W1 is signed or unsigned, and #fixed_prec[1:7] is the 7-bit number representing the number of fractional bits in W1 
+  RYVM_OP_FPFX,    // FPFX W0 W1 #fixed_prec ; W0 = #fixed_prec & 0b10000000 == 0 ? (unsigned int) W1 : int(W1); where #fixed_prec[0] determines if W0 is signed or unsigned, and #fixed_prec[1:7] is the 7-bit number representing the number of fractional bits in W0 
+  RYVM_OP_ADDI,    // ADDI W0 W1 #imm        ; W0 = W1 + imm ; imm is signed 8 bits
+  RYVM_OP_SUBI,    // SUBI W0 W1 #imm        ; W0 = W1 - imm; imm is signed 8 bits
+  RYVM_OP_ADD ,    // ADD E0, E1, E2         ; Add 8bit 2-s complement integers and store it in E0
+  RYVM_OP_SUB ,    // SUB E0, E1, E2         ; Subtract 8bit 2-s complement integers and store it in E0
+  RYVM_OP_MUL ,    // MUL E0, E1, E2         ; multiply 2 signed integers 
+  RYVM_OP_MULU,    // MULU E0, E1, E2        ; multiply 2 unsigned integers 
+  RYVM_OP_DIV ,    // DIV E0, E1, E2         ; divide 2 signed integers 
+  RYVM_OP_DIVU,    // DIVU E0, E1, E2        ; divide 2 unsigned integers 
+  RYVM_OP_REM ,    // REM E0, E1, E2         ; remainder 2 signed integers 
+  RYVM_OP_REMU ,   // REMU E0, E1, E2        ; remainder 2 unsigned integers 
+  RYVM_OP_ADDF ,   // ADDF W0, W1, W2        ; Add 64bit floating point and store it in W0
+  RYVM_OP_SUBF ,   // SUBF W0, W1, W2        ; Subtract 64bit floating point and store it in W0
+  RYVM_OP_MULF ,   // MULF W0, W1, W2        ; Multiply 64bit floating point and store it in W0
+  RYVM_OP_DIVF ,   // DIVF W0, W1, W2        ; Divide 64bit floating point and store it in W0
+  RYVM_OP_REMF ,   // REMF W0, W1, W2        ; Remainder 64bit floating point and store it in W0
+  RYVM_OP_AND,     // AND W0, W1, W2         ; bitwise AND operation
+  RYVM_OP_OR ,     // OR W0, W1, W2          ; bitwise OR operation
+  RYVM_OP_XOR ,    // XOR W0, W1, W2         ; bitwise XOR operation
+  RYVM_OP_XORI,    // XORI W0, W1, #imm      ; bitwise XOR operation with immediate 8bit value sign extended to bytewidth of source register
+  RYVM_OP_SHL ,    // SHL W0, W1, W2         ; bitwise shift left
+  RYVM_OP_SHR ,    // SHR W0, W1, W2         ; bitwise shift right
+  RYVM_OP_BIC ,    // BIC E0 E1 E2           ; if bit at E2 is 0, keep bit at E1. If bit at E2 is 1, clear bit in E1 to 0. Store result in E0
+  RYVM_OP_EQ ,     // EQ W0, W1, W2          ; W1 == W2, store result to W0
+  RYVM_OP_NE ,     // NE W0, W1, W2          ; W1 != W2, store result to W0
+  RYVM_OP_GTS ,    // GTS W0, W1, W2         ; W1 signed integer is greater than W2 signed integer, store result to W0
+  RYVM_OP_LTS ,    // LTS W0, W1, W2         ; W1 signed integer is less than W2 signed integer, store result to W0
+  RYVM_OP_GES ,    // GES W0, W1, W2         ; W1 signed integer is greater than or equal to W2 signed integer, store result to W0
+  RYVM_OP_LES ,    // LES W0, W1, W2         ; W1 signed integer is less than or equal to W2 signed integer, store result to W0
+  RYVM_OP_GTU ,    // GTU W0, W1, W2         ; W1 unsigned integer is greater than W2 unsigned integer, store result to W0
+  RYVM_OP_LTU ,    // LTU W0, W1, W2         ; W1 unsigned integer is less than W2 unsigned integer, store result to W0
+  RYVM_OP_GEU ,    // GEU W0, W1, W2         ; W1 unsigned integer is greater than or equal to W2 unsigned integer, store result to W0
+  RYVM_OP_LEU ,    // LEU W0, W1, W2         ; W1 unsigned integer is les than or equal to W2 unsigned integer, store result to W0
+  RYVM_OP_GTF ,    // GTF W0, W1, W2         ; W1 float is greater than W2 float, store result to W0
+  RYVM_OP_LTF ,    // LTF W0, W1, W2         ; W1 float is less than W2 float, store result to W0
+  RYVM_OP_GEF ,    // GEF W0, W1, W2         ; W1 float is greater or equal to W2 float, store result to W0
+  RYVM_OP_LEF ,    // LEF W0, W1, W2         ; W1 float is less or equal to W2 float, store result to W0
+  RYVM_OP_B ,      // B #imm                 ; unconditional jump to signed 24-bit PC-relative offset
+  RYVM_OP_BZ ,     // BZ W0 #imm             ; if W0 is zero, jump to PC + #imm
+  RYVM_OP_BNZ ,    // BNZ W0 #imm            ; if W0 is non-zero, jump to PC + #imm
+  RYVM_OP_BR,      // BR W0, #imm            ; pc = W0 + #imm;  indirect jump without saving link register. can be useful for return statement or for executing a specific function within an array of function pointers.
+  RYVM_OP_BL ,     // BL W0, #imm            ; branch and link; W0 = pc + 4; pc = pc + imm  ; imm is signed 16bit offset
+  RYVM_OP_BLR ,    // BLR W0, W1, #imm       ; W0 = pc + 4;   pc = W1 + imm ; imm is signed 8bits (used for indirect jumps, calls, and returns)
+  RYVM_OP_SYS      // SYS #imm               ; a external function call to call OS-specific functions in a cross-platform way, using a 24bit syscall number 
+};
+
+enum ryvm_ins_format {
+  RYVM_INS_FORMAT_R0, // 0 registers, 1 24-bit immediate value
+  RYVM_INS_FORMAT_R1, // 1 registers, 1 16-bit immediate value 
+  RYVM_INS_FORMAT_R2, // 2 registers, 1 8-bit immediate value
+  RYVM_INS_FORMAT_R3, // 3 registers, 0 immediate values
 };
 
 
-//config
-extern const char *RYVM_CONFIG_MAX_STACK;
-//code
-extern const char *RYVM_CODE_HEADER;
 
-//data
-extern const char *RYVM_CONST_DATA_HEADER;
-extern const char *RYVM_DATA_HEADER;
-extern const char *RYVM_DATA_BYTE_HEADER;
-extern const char *RYVM_DATA_2BYTE_HEADER;
-extern const char *RYVM_DATA_4BYTE_HEADER;
-extern const char *RYVM_DATA_8BYTE_HEADER;
-
-extern const char *RYVM_DATA_2BYTE_FLOAT_HEADER;
-extern const char *RYVM_DATA_4BYTE_FLOAT_HEADER;
-extern const char *RYVM_DATA_8BYTE_FLOAT_HEADER;
-
-extern const char *RYVM_DATA_ASCIZ_HEADER;
 
 
 int ryvm_opcode_str_to_op(const char *s, enum ryvm_opcode *code);
 const char * ryvm_opcode_op_to_str(enum ryvm_opcode op);
-
-uint8_t ryvm_opcode_get_arity(enum ryvm_opcode op);
+enum ryvm_ins_format ryvm_opcode_get_ins_format(enum ryvm_opcode op);
 
 
 #endif// RYVM_OPCODE_H

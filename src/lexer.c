@@ -78,7 +78,7 @@ int ryvm_lexer_read_word(struct ryvm_lexer *lexer, char init_char) {
 
 
 //returns 0 for no number, 1 for integer, and 2 for float
-int ryvm_lexer_parse_as_number(char *num_str, uint32_t num_str_len, union num *data) {
+int ryvm_lexer_parse_as_number(char *num_str, uint32_t num_str_len, union num *data, uint8_t is_neg) {
   if(!isdigit(num_str[0])) {
     return 0;
   }
@@ -104,9 +104,22 @@ int ryvm_lexer_parse_as_number(char *num_str, uint32_t num_str_len, union num *d
 
   if(is_float) {
     data->f64 = atof(num_str);
+    if(is_neg) {
+      data->f64 = -data->f64;
+    }
     return 2;
   } else {
-    data->s64 = atoll(num_str);
+    char *endptr;
+    data->u64 = strtoull(num_str, &endptr, 10);
+
+    if(*endptr != '\0') {
+      return 0; //not a true integer.
+    }
+    
+    if(is_neg) {
+      data->s64 = -data->u64;
+    }
+
     return 1;
   }
 }
@@ -236,9 +249,6 @@ struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
       else if(strcmp(word, RYVM_DATA_2BYTE_HEADER) == 0)       tok.tag = RYVM_TOKEN_SECTION_DATA_DOUBLE;
       else if(strcmp(word, RYVM_DATA_4BYTE_HEADER) == 0)       tok.tag = RYVM_TOKEN_SECTION_DATA_QUAD;
       else if(strcmp(word, RYVM_DATA_8BYTE_HEADER) == 0)       tok.tag = RYVM_TOKEN_SECTION_DATA_OCT;
-      else if(strcmp(word, RYVM_DATA_2BYTE_FLOAT_HEADER) == 0) tok.tag = RYVM_TOKEN_SECTION_DATA_FLOAT16_HEADER;
-      else if(strcmp(word, RYVM_DATA_4BYTE_FLOAT_HEADER) == 0) tok.tag = RYVM_TOKEN_SECTION_DATA_FLOAT32_HEADER;
-      else if(strcmp(word, RYVM_DATA_8BYTE_FLOAT_HEADER) == 0) tok.tag = RYVM_TOKEN_SECTION_DATA_FLOAT64_HEADER;
 
       //invalid section
       else lexer->lexer_failed = 1; 
@@ -290,10 +300,12 @@ struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
       return tok;
     }
 
-    // A 16-bit signed PC-relative offset to label
-    // a "macro" that replaces %label with the PC-relative 16-bit signed offset
+    // A signed PC-relative offset to label. The number of bytes of the offset depends on either 
+    // 1. The data type it is used with
+    // 2. The instruction opcode it is used with
+    // a "macro" that replaces #label with the PC-relative signed offset
     // to the original :label defintion. Will throw an error if this label is out of bounds.
-    case '%': {
+    case '#': {
       RYVM_LEXER_MAC_GRAB_WORD(lexer, start_char, tok, word, word_len)
 
       tok.d.label_name = memory_alloc(lexer->mem, word_len); //note that since = is removed, this will fit the label, including the NULL character
@@ -330,6 +342,24 @@ struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
       return tok;
     }
 
+    //read as negative number
+    case '-':  {
+      RYVM_LEXER_MAC_GRAB_WORD(lexer, start_char, tok, word, word_len)
+
+      uint8_t type = ryvm_lexer_parse_as_number(word+1, word_len-1, &tok.d.num, 1);
+      if(type == 1) {
+        tok.tag = RYVM_TOKEN_INT_LITERAL;
+        return tok;
+      } else if(type == 2) {
+        tok.tag = RYVM_TOKEN_FLOAT_LITERAL;
+        return tok;
+      } 
+
+      lexer->lexer_failed = 1;
+      return tok;
+
+    }
+
     //opcodes (only letters) or register (letter and number) or numeric literal (only digits)
     default: {
       RYVM_LEXER_MAC_GRAB_WORD(lexer, start_char, tok, word, word_len)
@@ -341,7 +371,7 @@ struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
 
       //is a numeric literal
       if(isdigit(word[0])) {
-        uint8_t type = ryvm_lexer_parse_as_number(word, word_len, &tok.d.num);
+        uint8_t type = ryvm_lexer_parse_as_number(word, word_len, &tok.d.num, 0);
         if(type == 1) {
           tok.tag = RYVM_TOKEN_INT_LITERAL;
           return tok;
@@ -373,14 +403,18 @@ struct ryvm_token ryvm_lexer_get_token(struct ryvm_lexer *lexer) {
           is_reg = 1;
           reg_access_num = 3; //always the max bytewidth
           reg_num = RYVM_SP_REG;
-        } else if(word[0] == 'S' && word[1] == 'R') {
+        } else if(word[0] == 'S' && word[1] == 'F') {
           is_reg = 1;
           reg_access_num = 3; //always the max bytewidth
-          reg_num = RYVM_SR_REG;
+          reg_num = RYVM_SF_REG;
         } else if(word[0] == 'F' && word[1] == 'P') {
           is_reg = 1;
           reg_access_num = 3; //always the max bytewidth
           reg_num = RYVM_FP_REG;
+        } else if(word[0] == 'L' && word[1] == 'R') {
+          is_reg = 1;
+          reg_access_num = 3; //always the max bytewidth
+          reg_num = RYVM_LR_REG;
         }
       }
 

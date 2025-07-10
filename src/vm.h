@@ -35,6 +35,8 @@ extern inline uint64_t ryvm_vm_stack_ptr(struct ryvm *vm);
 extern inline uint64_t ryvm_vm_frame_ptr(struct ryvm *vm);
 extern inline uint64_t ryvm_vm_pc(struct ryvm *vm);
 extern inline uint64_t ryvm_vm_flags(struct ryvm *vm);
+extern inline uint64_t ryvm_vm_lr(struct ryvm *vm);
+
 
 extern inline void ryvm_vm_stack_ptr_set(struct ryvm *vm, uint64_t new_val);
 extern inline void ryvm_vm_frame_ptr_set(struct ryvm *vm, uint64_t new_val);
@@ -42,6 +44,8 @@ extern inline void ryvm_vm_pc_set(struct ryvm *vm, uint64_t new_val);
 extern inline void ryvm_vm_pc_inc(struct ryvm *vm);
 
 extern inline void ryvm_vm_flags_set(struct ryvm *vm, uint64_t new_val);
+extern inline void ryvm_vm_lr_set(struct ryvm *vm, uint64_t new_val);
+
 
 extern inline uint8_t ryvm_vm_flag_bool(struct ryvm *vm);
 extern inline void ryvm_vm_flag_bool_set(struct ryvm *vm, uint8_t bool_val);

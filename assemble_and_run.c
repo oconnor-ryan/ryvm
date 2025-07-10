@@ -24,7 +24,12 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  ryvm_assemble_to_bytecode(in, out);
+  if(!ryvm_assemble_to_bytecode(in, out)) {
+    printf("Cannot assembly bytecode!\n");
+    fclose(in);
+    fclose(out);
+    return 1;
+  }
 
   fclose(in);
   fclose(out);

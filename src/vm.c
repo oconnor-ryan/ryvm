@@ -50,17 +50,20 @@ inline void ryvm_vm_byte_to_reg(uint8_t reg, uint8_t *reg_bytewidth, uint8_t *re
   *reg_num = reg & 63;   //0b00111111  // remove unneeded bitwidth bits
 }
 
-inline uint64_t ryvm_vm_frame_ptr(struct ryvm *vm) {return vm->gen_registers[60];}
-inline uint64_t ryvm_vm_stack_ptr(struct ryvm *vm) {return vm->gen_registers[61];}
-inline uint64_t ryvm_vm_flags(struct ryvm *vm)     {return vm->gen_registers[62];}
+inline uint64_t ryvm_vm_frame_ptr(struct ryvm *vm) {return vm->gen_registers[RYVM_FP_REG];}
+inline uint64_t ryvm_vm_stack_ptr(struct ryvm *vm) {return vm->gen_registers[RYVM_SP_REG];}
+inline uint64_t ryvm_vm_flags(struct ryvm *vm)     {return vm->gen_registers[RYVM_SF_REG];}
+inline uint64_t ryvm_vm_lr(struct ryvm *vm)        {return vm->gen_registers[RYVM_LR_REG];}
 inline uint64_t ryvm_vm_pc(struct ryvm *vm)        {return vm->gen_registers[RYVM_PC_REG];}
 inline void ryvm_vm_pc_inc(struct ryvm *vm)        {vm->gen_registers[RYVM_PC_REG] += 4;} //size of instruction is 4 bytes
 
 
-inline void ryvm_vm_frame_ptr_set(struct ryvm *vm, uint64_t new_val)  {vm->gen_registers[60] = new_val;}
-inline void ryvm_vm_stack_ptr_set(struct ryvm *vm, uint64_t new_val)  {vm->gen_registers[61] = new_val;}
-inline void ryvm_vm_flags_set(struct ryvm *vm, uint64_t new_val)      {vm->gen_registers[62] = new_val;}
+inline void ryvm_vm_frame_ptr_set(struct ryvm *vm, uint64_t new_val)  {vm->gen_registers[RYVM_FP_REG] = new_val;}
+inline void ryvm_vm_stack_ptr_set(struct ryvm *vm, uint64_t new_val)  {vm->gen_registers[RYVM_SP_REG] = new_val;}
+inline void ryvm_vm_flags_set(struct ryvm *vm, uint64_t new_val)      {vm->gen_registers[RYVM_SF_REG] = new_val;}
 inline void ryvm_vm_pc_set(struct ryvm *vm, uint64_t new_val)         {vm->gen_registers[RYVM_PC_REG] = new_val;}
+inline void ryvm_vm_lr_set(struct ryvm *vm, uint64_t new_val)         {vm->gen_registers[RYVM_LR_REG] = new_val;}
+
 
 inline uint8_t ryvm_vm_flag_bool(struct ryvm *vm)   {return ryvm_vm_flags(vm) & 1;}
 inline void ryvm_vm_flag_bool_set(struct ryvm *vm, uint8_t bool_val)  { 
@@ -183,6 +186,9 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
 
     uint8_t *ins = (uint8_t*) ryvm_vm_pc(vm);
 
+    ryvm_vm_pc_inc(vm); //increment PC.
+
+
     enum ryvm_opcode op = (enum ryvm_opcode) ins[0];
     uint8_t reg1_bytewidth;
     uint8_t reg1_num;
@@ -256,12 +262,13 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
     #define RYVM_MACRO_COMP_BIN_OP(op, type) { \
       type a = 0; \
       type b = 0; \
-      memcpy(&a, &vm->gen_registers[reg1_num], reg1_bytewidth); \
-      memcpy(&b, &vm->gen_registers[reg2_num], reg2_bytewidth); \
+      memcpy(&a, &vm->gen_registers[reg2_num], reg2_bytewidth); \
+      memcpy(&b, &vm->gen_registers[reg3_num], reg3_bytewidth); \
       /* Depending on the bytewidth of the dest register, we need to perform a single or double precision floating point operation*/ \
       /* We must do this because you cannot easily "sign-extend" a floating point number like you can with 2's complement integers*/ \
-      uint8_t value = a op b; \
-      ryvm_vm_flag_bool_set(vm, value); \
+      uint64_t value = a op b; \
+      uint8_t end_offset_dest = reg1_bytewidth; \
+      memcpy(&vm->gen_registers[reg1_num], &value, end_offset_dest); \
       break; \
     }
 
@@ -269,12 +276,13 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
     #define RYVM_MACRO_COMP_FLOAT_BIN_OP_BODY(op, type1, type2) { \
       type1 a = 0; \
       type2 b = 0; \
-      memcpy(&a, &vm->gen_registers[reg1_num], reg1_bytewidth); \
-      memcpy(&b, &vm->gen_registers[reg2_num], reg2_bytewidth); \
+      memcpy(&a, &vm->gen_registers[reg2_num], reg2_bytewidth); \
+      memcpy(&b, &vm->gen_registers[reg3_num], reg3_bytewidth); \
       /* Depending on the bytewidth of the dest register, we need to perform a single or double precision floating point operation*/ \
       /* We must do this because you cannot easily "sign-extend" a floating point number like you can with 2's complement integers*/ \
-      uint8_t value = a op b; \
-      ryvm_vm_flag_bool_set(vm, value); \
+      uint64_t value = a op b; \
+      uint8_t end_offset_dest = reg1_bytewidth; \
+      memcpy(&vm->gen_registers[reg1_num], &value, end_offset_dest); \
       break; \
     }
 
@@ -294,23 +302,65 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
 
 
     switch(op) {
-      //do nothing but waste CPU cycles and increment PC
-      case RYVM_OP_NOP: break;
+      /* Conversions */
+      case RYVM_OP_FPFX: {
+        //TODO, add algorithm to convert floating point to fixed point number
+        uint8_t is_signed = ins[3] & 128; // extract most significant bit
+        //uint8_t fixed_point_frac_precision = ins[3] & 127; //extract 7 least significant bits
 
-      /* move, load, and store */
-      case RYVM_OP_MOV: {
+        if(reg2_bytewidth <= 4) {
+          float *old_value = (float*) vm->gen_registers + reg2_num;
+          if(is_signed) {
+            int64_t converted_value = (int64_t) *old_value;
+            memcpy(&vm->gen_registers[reg1_num], &converted_value, reg1_bytewidth);
+          } else {
+            uint64_t converted_value = (uint64_t) *old_value;
+            memcpy(&vm->gen_registers[reg1_num], &converted_value, reg1_bytewidth);
+          }
+        } else {
+          double *old_value = (double*) vm->gen_registers + reg2_num;
+          if(is_signed) {
+            int64_t converted_value = (int64_t) *old_value;
+            memcpy(&vm->gen_registers[reg1_num], &converted_value, reg1_bytewidth);
+          } else {
+            uint64_t converted_value = (uint64_t) *old_value;
+            memcpy(&vm->gen_registers[reg1_num], &converted_value, reg1_bytewidth);
+          }
+        }
 
-        uint8_t *dest = (uint8_t*) &vm->gen_registers[reg1_num];
-        uint8_t *src = (uint8_t*) &vm->gen_registers[reg2_num];
-
-        uint8_t end_offset_dest = reg1_bytewidth;
-
-        //note that src register does not really matter, since
-        //all registers share the same address, no matter the bytewidth
-        memcpy(dest, src, end_offset_dest);
         break;
       }
-      case RYVM_OP_PCA: {
+
+      case RYVM_OP_FXFP: {
+        //TODO, add algorithm to convert fixed point to floating point number
+        uint8_t is_signed = ins[3] & 128; // extract most significant bit
+        //uint8_t fixed_point_frac_precision = ins[3] & 127; //extract 7 least significant bits
+
+        if(reg2_bytewidth <= 4) {
+          if(is_signed) {
+            int64_t *signed_value = (int64_t*) vm->gen_registers[reg2_num];
+            float converted_value = (float) *signed_value;
+            memcpy(&vm->gen_registers[reg1_num], &converted_value, reg1_bytewidth);
+          } else {
+            float converted_value = (float) vm->gen_registers[reg2_num];
+            memcpy(&vm->gen_registers[reg1_num], &converted_value, reg1_bytewidth);
+          }
+        } else {
+          if(is_signed) {
+            int64_t *signed_value = (int64_t*) vm->gen_registers[reg2_num];
+            double converted_value = (double) *signed_value;
+            memcpy(&vm->gen_registers[reg1_num], &converted_value, reg1_bytewidth);
+          } else {
+            double converted_value = (double) vm->gen_registers[reg2_num];
+            memcpy(&vm->gen_registers[reg1_num], &converted_value, reg1_bytewidth);
+          }
+        }
+
+        break;
+      }
+
+      /* move, load, and store */
+      case RYVM_OP_PCR: {
         uint8_t *dest = (uint8_t*) &vm->gen_registers[reg1_num];
 
         int16_t *offset = (int16_t*) (ins + 2);
@@ -321,14 +371,15 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
 
         break;
       }
-      case RYVM_OP_LDR: {
+      case RYVM_OP_LDA: {
         uint8_t *dest = (uint8_t*) &vm->gen_registers[reg1_num];
+        int8_t offset = ins[3];
         
         //attempt to dereference address inside register.
         //This is a REAL address, not one that is controlled by the virtual
         //machine.
         //THIS WILL CAUSE UNDEFINED BEHAVIOR if this is not a valid address.
-        uint64_t value = *((uint64_t*)vm->gen_registers[reg2_num]);
+        uint64_t value = *((uint64_t*) (vm->gen_registers[reg2_num] + offset));
 
         //you may choose the bytewidth of the destination register, but 
         //the src register's bytewidth does not matter. The src register will
@@ -350,7 +401,8 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
       case RYVM_OP_STR: {
         //remember that THIS WILL CAUSE UNDEFINED BEHAVIOR if the address
         //in this register is invalid.
-        uint64_t *dest_address = (uint64_t*)vm->gen_registers[reg2_num];
+        int8_t offset = ins[3];
+        uint64_t *dest_address = (uint64_t*)(vm->gen_registers[reg2_num] + offset);
         memcpy(dest_address, &vm->gen_registers[reg1_num], reg1_bytewidth);
         break;
       }
@@ -364,27 +416,43 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
       case RYVM_OP_SHL: RYVM_MACRO_ARITH_BIN_OP(<<, uint64_t)
       case RYVM_OP_SHR: RYVM_MACRO_ARITH_BIN_OP(>>, uint64_t)
 
-      // TODO: consider adding 2nd register parameter that specifies what bits to clear
+      // If bit in 3rd reg is 0, keep original bit in 2nd reg. If the bit in 3rd reg is 1, clear it to 0
       case RYVM_OP_BIC: {
-        uint64_t val = 0;
+        uint64_t val = vm->gen_registers[reg2_num];
+        val &= ~vm->gen_registers[reg3_num];
         memcpy(&vm->gen_registers[reg1_num], &val, reg1_bytewidth);
         break;
       }
 
 
-      case RYVM_OP_NOT: {
-        uint64_t a = 0; 
-        //only copy src register up to specified bytewidth
-        memcpy(&a, &vm->gen_registers[reg2_num], reg2_bytewidth); 
-        uint64_t value = ~a;
+      case RYVM_OP_XORI: {
+        int64_t a = ins[3];  //sign extend 8-bit immediate value
+        int64_t result = vm->gen_registers[reg2_num] ^ a;
+
         //only copy the bytewidth specified from the result to the dest register
         uint8_t end_offset_dest = reg1_bytewidth; 
-        memcpy(&vm->gen_registers[reg1_num], &value, end_offset_dest); 
+        memcpy(&vm->gen_registers[reg1_num], &result, end_offset_dest); 
         break;
       }
 
 
       /* Arithmetic For Signed/Unsigned Integers */
+
+      case RYVM_OP_ADDI: {
+        uint64_t result = 0;
+        int8_t imm = ins[3];
+        result = vm->gen_registers[reg2_num] + imm;
+        memcpy(&vm->gen_registers[reg1_num], &result, reg1_bytewidth); 
+        break;
+      }
+
+      case RYVM_OP_SUBI: {
+        uint64_t result = 0;
+        int8_t imm = ins[3]; //Note. Despite C forcing a implicit conversion from unsigned to signed int, due to 2's complement, the conversion results in the same bit representation.
+        result = vm->gen_registers[reg2_num] - imm;
+        memcpy(&vm->gen_registers[reg1_num], &result, reg1_bytewidth); 
+        break;
+      }
 
 
       //use uint64_t for unsigned arithmetic and int64_t for signed arithmetic.
@@ -396,8 +464,8 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
       case RYVM_OP_MULU: RYVM_MACRO_ARITH_BIN_OP(*, int64_t)
       case RYVM_OP_DIV: RYVM_MACRO_ARITH_BIN_OP(/, uint64_t)
       case RYVM_OP_DIVU: RYVM_MACRO_ARITH_BIN_OP(/, int64_t)
-      case RYVM_OP_MOD: RYVM_MACRO_ARITH_BIN_OP(%, uint64_t)
-      case RYVM_OP_MODU: RYVM_MACRO_ARITH_BIN_OP(%, int64_t)
+      case RYVM_OP_REM: RYVM_MACRO_ARITH_BIN_OP(%, uint64_t)
+      case RYVM_OP_REMU: RYVM_MACRO_ARITH_BIN_OP(%, int64_t)
 
 
       /* Arithmetic For 32-bit and 64-bit floating point numbers */
@@ -408,7 +476,7 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
 
       //there is no builtin C operator to perform modulus operation on floating point, 
       //so we will need to use fmod() for doubles and fmodf for floats
-      case RYVM_OP_MODF: {
+      case RYVM_OP_REMF: {
         if(reg2_bytewidth > 4 && reg3_bytewidth > 4) {
           double a = 0; 
           double b = 0; 
@@ -486,114 +554,123 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
 
       /* Jumps */
 
-      case RYVM_OP_JMP: {
-        ryvm_vm_pc_set(vm, vm->gen_registers[reg1_num]);
-        continue; //do not increment pc 
+      case RYVM_OP_B: {
+        int32_t offset;
+
+        //set individual bytes of 24 bit number
+        uint8_t *offset_bytes = (uint8_t*) &offset;
+        offset_bytes[0] = ins[1];
+        offset_bytes[1] = ins[2];
+        offset_bytes[2] = ins[3];
+        offset_bytes[3] = 0;
+
+
+        ryvm_vm_pc_set(vm, ryvm_vm_pc(vm) + offset);
+        break;
 
       }
-      case RYVM_OP_JMPT: {
-        if(ryvm_vm_flag_bool(vm)) {
-          ryvm_vm_pc_set(vm, vm->gen_registers[reg1_num]);
-          continue; //do not increment pc 
+      case RYVM_OP_BZ: {
+        if(!vm->gen_registers[reg1_num]) {
+
+          //apparently this fails to work
+          // int16_t *off = ins + 2;
+          
+          //but this does work.
+          int16_t offset;
+          uint8_t *offset_bytes = (uint8_t*) &offset;
+          offset_bytes[0] = ins[2];
+          offset_bytes[1] = ins[3];
+
+          //I hate implicit conversions.
+
+          ryvm_vm_pc_set(vm, ryvm_vm_pc(vm) + offset);
         }
         break; 
       }
-      case RYVM_OP_JMPF: {
-        if(!ryvm_vm_flag_bool(vm)) {
-          ryvm_vm_pc_set(vm, vm->gen_registers[reg1_num]);
-          continue; //do not increment pc 
-        }
+      case RYVM_OP_BNZ: {
+        if(vm->gen_registers[reg1_num]) {
+          //apparently this fails to work
+          // int16_t *off = ins + 2;
+          
+          //but this does work.
+          int16_t offset;
+          uint8_t *offset_bytes = (uint8_t*) &offset;
+          offset_bytes[0] = ins[2];
+          offset_bytes[1] = ins[3];
 
-        break; 
+          //I hate implicit conversions.
+          ryvm_vm_pc_set(vm, ryvm_vm_pc(vm) + offset);
+        }
+        break;  
       }
 
-      /* Calls and Returns */
-      // TODO: Due to the multiple different ways and conventions to call and return from functions
-      // we will throw an error if using a CALL or RET opcode until we figure out a reasonable 
-      // default calling convention.
-      case RYVM_OP_CALL: {
-        /*
-          If we use CALL along with using a SP, PC, and FP, we need to:
-          Save the FP to stack so that we can restore it once we return from the subroutine
-          Save the old SP to FP so that we can restore our old SP
-          Save the PC to stack
+      case RYVM_OP_BL: {
+        //set LR to PC of next instruction
+        vm->gen_registers[reg1_num] = ryvm_vm_pc(vm);
 
-          The advantage of doing this is that the callee does less work to 
-          restore the caller's registers. It can use one RET to restore the PC, SP, and FP.
-
-          The disadvantage is that we can technically get away with only saving the PC on the caller's
-          side, then force the callee to restore the SP and FP anyway they want, whether that is 
-          by popping every value on the stack back to their original register like every other register,
-          or by explicitly saving the FP and SP to the stack and reloading those values, discarding
-          all other previously saved registers.
-
-          Another convention can be to push nothing to the stack, and make one of the registers
-          into a "link" register, which stores the previous return address (this should be a callee-saved
-          register so that it survives nested subroutine calls)
-
-
-
-
-        */
-        //push 8 byte frame pointer to stack so that we can restore its value after using RET
-        uint64_t val = ryvm_vm_frame_ptr(vm);
-        memcpy((void*) ryvm_vm_stack_ptr(vm), &val, 8);
-        ryvm_vm_stack_ptr_set(vm, ryvm_vm_stack_ptr(vm) + 8);
-
-        //push 8-byte program counter to stack so that RET can jump back to it.
-        val = ryvm_vm_pc(vm);
-        memcpy((void*) ryvm_vm_stack_ptr(vm), &val, 8);
-        ryvm_vm_stack_ptr_set(vm, ryvm_vm_stack_ptr(vm) + 8);
-
-        //set frame pointer to point to start of new stack frame
-        ryvm_vm_frame_ptr_set(vm, ryvm_vm_stack_ptr(vm));
-
-        //set PC to 
-
-        assert(0);
-
+        //16-bit offset 
+        //apparently this fails to work
+        // int16_t *off = ins + 2;
+        
+        //but this does work.
+        int16_t offset;
+        uint8_t *offset_bytes = (uint8_t*) &offset;
+        offset_bytes[0] = ins[2];
+        offset_bytes[1] = ins[3];
+        ryvm_vm_pc_set(vm, ryvm_vm_pc(vm) + offset);
         break;
 
 
       }
 
-      case RYVM_OP_RET: {
-        //set 
+      case RYVM_OP_BR: {
+        //16-bit offset 
+        //apparently this fails to work
+        // int16_t *off = ins + 2;
+        
+        //but this does work.
+        int16_t offset;
+        uint8_t *offset_bytes = (uint8_t*) &offset;
+        offset_bytes[0] = ins[2];
+        offset_bytes[1] = ins[3];
 
-        assert(0);
+        ryvm_vm_pc_set(vm, vm->gen_registers[reg1_num] + offset);
+        break;
       }
 
       /* Stack Related Stuff */
-      case RYVM_OP_PUSH: {
-        uint8_t *src = (uint8_t*) &vm->gen_registers[reg1_num];
-        memcpy((void*) ryvm_vm_stack_ptr(vm), src, reg1_bytewidth);
-        ryvm_vm_stack_ptr_set(vm, ryvm_vm_stack_ptr(vm) + reg1_bytewidth);
+      case RYVM_OP_BLR: {
+        int8_t offset = ins[3];
+
+        vm->gen_registers[reg1_num] = ryvm_vm_pc(vm);
+
+        ryvm_vm_pc_set(vm, vm->gen_registers[reg2_num] + offset);
         break;
       }
 
-      case RYVM_OP_POP: {
-        ryvm_vm_stack_ptr_set(vm, ryvm_vm_stack_ptr(vm) - reg1_bytewidth);
-        memcpy(&vm->gen_registers[reg1_num], (void*) ryvm_vm_stack_ptr(vm), reg1_bytewidth);
-        break;
-      }
 
       /* Misc */
-      case RYVM_OP_END: {
-        uint8_t *src = (uint8_t*) &vm->gen_registers[reg1_num];
-        uint8_t end_offset_src = reg1_bytewidth;
-
-        memcpy(&result, src, end_offset_src);
-        vm->is_running = 0;
-        continue; //dont increment pc
-      }
 
       //similar to the x86-64 Linux calling convention, the 0th register is the syscall number, and any values returned
       //from the syscall are stored at the 0th register
       case RYVM_OP_SYS: {
-        uint64_t src = vm->gen_registers[0];
-        switch(src) {
+        uint32_t offset;
+
+        //set individual bytes of 24 bit number
+        uint8_t *offset_bytes = (uint8_t*) &offset;
+        offset_bytes[0] = ins[1];
+        offset_bytes[1] = ins[2];
+        offset_bytes[2] = ins[3];
+        offset_bytes[3] = 0;
+
+        switch(offset) {
+          //kill vm
+          case 0:
+            vm->is_running = 0;
+            result = vm->gen_registers[0];
+            break;
           //print single register from W1
-          case 0: 
+          case 1: 
             printf("%lld\n", vm->gen_registers[1]);
             break;
           default:
@@ -614,7 +691,6 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
     }
 
 
-    ryvm_vm_pc_inc(vm);
   }
 
 

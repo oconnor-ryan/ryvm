@@ -7,7 +7,21 @@
 #include <stdio.h>
 
 
+//config
+extern const char *RYVM_CONFIG_MAX_STACK;
+//code
+extern const char *RYVM_CODE_HEADER;
 
+//data
+extern const char *RYVM_CONST_DATA_HEADER;
+extern const char *RYVM_DATA_HEADER;
+extern const char *RYVM_DATA_BYTE_HEADER;
+extern const char *RYVM_DATA_2BYTE_HEADER;
+extern const char *RYVM_DATA_4BYTE_HEADER;
+extern const char *RYVM_DATA_8BYTE_HEADER;
+
+
+extern const char *RYVM_DATA_ASCIZ_HEADER;
 
 
 
@@ -169,7 +183,7 @@ struct ryvm_assembler_state {
 
 };
 
-void ryvm_assemble_to_bytecode(FILE *in, FILE *out);
+int ryvm_assemble_to_bytecode(FILE *in, FILE *out);
 
 
 #endif// RYVM_ASSEMBLER_H
