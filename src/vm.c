@@ -55,7 +55,7 @@ inline uint64_t ryvm_vm_stack_ptr(struct ryvm *vm) {return vm->gen_registers[RYV
 inline uint64_t ryvm_vm_flags(struct ryvm *vm)     {return vm->gen_registers[RYVM_SF_REG];}
 inline uint64_t ryvm_vm_lr(struct ryvm *vm)        {return vm->gen_registers[RYVM_LR_REG];}
 inline uint64_t ryvm_vm_pc(struct ryvm *vm)        {return vm->gen_registers[RYVM_PC_REG];}
-inline void ryvm_vm_pc_inc(struct ryvm *vm)        {vm->gen_registers[RYVM_PC_REG] += 4;} //size of instruction is 4 bytes
+inline void ryvm_vm_pc_inc(struct ryvm *vm)        {vm->gen_registers[RYVM_PC_REG] += RYVM_INS_SIZE;} //size of instruction is 4 bytes
 
 
 inline void ryvm_vm_frame_ptr_set(struct ryvm *vm, uint64_t new_val)  {vm->gen_registers[RYVM_FP_REG] = new_val;}

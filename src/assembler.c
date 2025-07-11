@@ -98,11 +98,6 @@ int ryvm_assembler_relative_pc_offset24(uint64_t ins_rel_adr, uint64_t dest, int
 
 
 
-void ryvm_assembler_write_and_update_address(struct ryvm_assembler_state *asm_state, uint64_t num_bytes, void *src_ptr) {
-  fwrite(src_ptr, num_bytes, 1, asm_state->output);
-  asm_state->current_relative_address += num_bytes;
-}
-
 
 void ryvm_assembler_print_register(uint8_t reg) {
   uint8_t reg_num = reg;
@@ -228,6 +223,8 @@ void ryvm_assembler_free(struct ryvm_assembler_state *asm_state) {
 }
 
 
+/* Callback functions */
+
 int ryvm_assembler_add_data_to_data_section(struct ryvm_assembler_state *asm_state, struct ryvm_assembler_data_entry *e) {
   return memory_array_builder_append_element(&asm_state->data, e);
 }
@@ -326,6 +323,29 @@ uint8_t ryvm_assembler_data_entry_type_bytewidth(enum ryvm_assembler_data_entry_
   }
 }
 
+
+// FIXME: This is not efficient, It would be better to store all these bytes under a single
+// entry. For now, this will work fine.
+int ryvm_assembler_parse_string_lit_as_byte_list(struct ryvm_assembler_state *asm_state, int (*add_entry_func)(struct ryvm_assembler_state *s, struct ryvm_assembler_data_entry *e), char *str) {
+  char *cur_char = str;
+  while(*cur_char != '\0') {
+    struct ryvm_assembler_data_entry e;
+    e.tag = RYVM_ASSEMBLER_DATA_ENTRY_TYPE_1BYTE;
+    e.using_placeholder = 0;
+    e.d.num.s8 = *cur_char;
+
+    if(!add_entry_func(asm_state, &e)) {
+      ryvm_assembler_error(asm_state, "Failed to add data entry!");
+      return 0;
+    }
+    cur_char++;
+    asm_state->current_relative_address += 1; //1 byte
+  }
+
+  return 1;
+
+}
+
 //despite us parsing a list of numbers under one data type, each number will show up in its
 //own data entry 
 int ryvm_assembler_parse_number_list(struct ryvm_assembler_state *asm_state, enum ryvm_assembler_data_entry_type data_type, int (*add_entry_func)(struct ryvm_assembler_state *s, struct ryvm_assembler_data_entry *e)) {
@@ -341,7 +361,7 @@ int ryvm_assembler_parse_number_list(struct ryvm_assembler_state *asm_state, enu
       e.d.num = tok.d.num;
       e.using_placeholder = 0;
     } else if(tok.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
-      e.tag = RYVM_ASSEMBLER_DATA_ENTRY_TYPE_2BYTE;
+      e.tag = data_type; //Offset can have different bytewidth depending on data type
       if(!ryvm_assembler_add_label_expr(asm_state, tok.d.label_name)) return 0;
       e.d.placeholder = tok;
       e.using_placeholder = 1;
@@ -350,7 +370,24 @@ int ryvm_assembler_parse_number_list(struct ryvm_assembler_state *asm_state, enu
       if(!ryvm_assembler_add_label_expr(asm_state, tok.d.label_name)) return 0;
       e.d.placeholder = tok;
       e.using_placeholder = 1;
-    } else {
+    } 
+    //this is a special case where we will allow ASCII characters from string literals to be inserted here.
+    //The difference between this and .asciz is that the null character is not included. If you want to include
+    //the null character or any other special characters (\t \n \r, etc), you need to use the integer value 
+    //of those ASCII values.
+    //Ex: 
+    // .eword "Hello World" 10 0    ; represents "Hello World\n\0" since \n is represented as 10
+    
+    else if(data_type == RYVM_ASSEMBLER_DATA_ENTRY_TYPE_1BYTE && tok.tag == RYVM_TOKEN_STRING_LITERAL) {
+      uint64_t old_rel_adr = asm_state->current_relative_address;
+      if(!ryvm_assembler_parse_string_lit_as_byte_list(asm_state, add_entry_func, tok.d.string_lit)) {
+        return 0;
+      }
+      num_nums += asm_state->current_relative_address - old_rel_adr;
+      continue; //we dont want to execute the below code since this is already handled.
+    }
+    
+    else {
       /* Store token for future parsing */ 
       asm_state->lex.has_unparsed_token = 1; 
       asm_state->lex.unparsed_token = tok; 
@@ -366,6 +403,8 @@ int ryvm_assembler_parse_number_list(struct ryvm_assembler_state *asm_state, enu
     
     num_nums++;
   } 
+
+
   if(num_nums == 0) { 
     ryvm_assembler_error(asm_state, "Expected integer or float literal."); 
     return 0;
@@ -430,6 +469,8 @@ int ryvm_parse_data_entry_any_section(struct ryvm_assembler_state *asm_state, st
       break;
     }
 
+    //Note that string literals do not respect escaped characters. If you want to include characters
+    //you would normally escape, use the actual integer value for the ascii character inside the .eword data type 
     case RYVM_TOKEN_SECTION_DATA_ASCIZ: {
       tok = ryvm_lexer_get_token(&asm_state->lex);
       if(tok.tag != RYVM_TOKEN_STRING_LITERAL) {

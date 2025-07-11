@@ -39,7 +39,7 @@
 :lef    .asciz "Less Than or Equal Float"
 :gef    .asciz "Greater Than Or Equal Float"
 
-
+.eword "Testing ASCII without Null Char" 10 0 ;add newline and null character manually
 
 
 .text
