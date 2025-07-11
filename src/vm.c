@@ -391,8 +391,10 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
       }
 
       case RYVM_OP_LDI: {
+        //in order to sign-extend a value, C requires the smaller
+        //value to be cast to a SIGNED datatype. 
         //sign-extend 16-bit value to 64 bits
-        uint64_t val = (uint64_t) *((uint16_t*) (ins+2));
+        int64_t val = (int64_t) *((int16_t*) (ins+2));
         memcpy(&vm->gen_registers[reg1_num], &val, reg1_bytewidth);
         break;
       }

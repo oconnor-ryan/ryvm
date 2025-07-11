@@ -20,6 +20,27 @@
 :divf   .asciz "Div Float"
 :remf   .asciz "Rem Float"
 
+:eq     .asciz "Equal"
+:ne     .asciz "Not Equal"
+
+:ltu    .asciz "Less Than Unsigned"
+:gtu    .asciz "Greater Than Unsigned"
+:leu    .asciz "Less Than or Equal Unsigned"
+:geu    .asciz "Greater Than Or Equal Unsigned"
+
+:lts    .asciz "Less Than Signed"
+:gts    .asciz "Greater Than Signed"
+:les    .asciz "Less Than or Equal Signed"
+:ges    .asciz "Greater Than Or Equal Signed"
+
+
+:ltf    .asciz "Less Than Float"
+:gtf    .asciz "Greater Than Float"
+:lef    .asciz "Less Than or Equal Float"
+:gef    .asciz "Greater Than Or Equal Float"
+
+
+
 
 .text
 LDI W0 0
@@ -109,6 +130,105 @@ PCR W1 #remf
 SYS 3 ; print string
 REMF W1 W2 W3
 SYS 2
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Unsigned Comparison ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;
+
+LDI W2 3 ; 0b011
+LDI W3 5 ; 0b101         0110  1111 1001
+
+PCR W1 #eq
+SYS 3
+EQ W1 W2 W3
+SYS 1
+
+PCR W1 #ne
+SYS 3
+NE W1 W2 W3
+SYS 1
+
+PCR W1 #ltu
+SYS 3
+LTU W1 W2 W3
+SYS 1
+
+PCR W1 #gtu
+SYS 3
+GTU W1 W2 W3
+SYS 1
+
+PCR W1 #leu
+SYS 3
+LEU W1 W2 W3
+SYS 1
+
+PCR W1 #geu
+SYS 3
+GEU W1 W2 W3
+SYS 1
+
+
+;;;;;;;;;;;;;;;;;;;;;;;
+;; Signed Comparison ;;
+;;;;;;;;;;;;;;;;;;;;;;;
+
+LDI W2 3 ; 0b011
+LDI W3 -5 ; 0b101         0110  1111 1001
+
+PCR W1 #lts
+SYS 3
+LTS W1 W2 W3
+SYS 1
+
+PCR W1 #gts
+SYS 3
+GTS W1 W2 W3
+SYS 1
+
+PCR W1 #les
+SYS 3
+LES W1 W2 W3
+SYS 1
+
+PCR W1 #ges
+SYS 3
+GES W1 W2 W3
+SYS 1
+
+;;;;;;;;;;;;;;;;;;;;;;
+;; Float Comparison ;;
+;;;;;;;;;;;;;;;;;;;;;;
+
+PCR W2 #float1
+LDA W2 W2 0
+PCR W3 #float2
+LDA W3 W3 0
+
+PCR W1 #ltf
+SYS 3
+LTF W1 W2 W3
+SYS 1
+
+PCR W1 #gtf
+SYS 3
+GTF W1 W2 W3
+SYS 1
+
+PCR W1 #lef
+SYS 3
+LEF W1 W2 W3
+SYS 1
+
+PCR W1 #gef
+SYS 3
+GEF W1 W2 W3
+SYS 1
+
+PCR W1 #eq
+SYS 3
+EQ W1 W2 W3
+SYS 1
 
 
 SYS 0

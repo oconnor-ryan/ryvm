@@ -1,0 +1,16 @@
+.max_stack_size 4000
+
+.text 
+
+; For testing stack-based operations, we will do the following:
+; 1. Swap the values of 2 registers without using a 3rd register 
+LDI W0 2
+LDI W1 4
+SYS 1 ; print 1st register as a integer.
+ADDI SP SP 8
+STR W0 SP -8 ; test the offset
+ADDI W0 W1 0 ;move W1 to W0 
+SUBI SP SP 8 ; move stack pointer back
+LDA W1 SP 0
+SYS 1 ; print 1st register as a integer.
+SYS 0 ;exit

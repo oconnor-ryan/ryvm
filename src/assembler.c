@@ -162,8 +162,14 @@ void ryvm_assembler_print(struct ryvm_assembler_state *asm_state) {
       switch(ryvm_opcode_get_ins_format(op)) {
         case RYVM_INS_FORMAT_R0: {
           //C does not allow us to define a 24-bit number without using a struct, so we'll just use a 32 bit number
-          int32_t *offset = (int32_t*) (entry->d.ins.regs);
-          printf("%d ", *offset);
+          uint8_t offset[4];
+          offset[0] = entry->d.ins.regs[0];
+          offset[1] = entry->d.ins.regs[1];
+          offset[2] = entry->d.ins.regs[2];
+          offset[3] = 0;
+
+
+          printf("%d ", (int32_t) *offset);
           break;
         }
         case RYVM_INS_FORMAT_R1: {

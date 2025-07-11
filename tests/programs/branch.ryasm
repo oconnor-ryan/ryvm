@@ -1,0 +1,40 @@
+.max_stack_size 0
+
+.text
+
+B #begin
+;test jumping over data entries in text section
+
+:sum_func_addr .word @sum_func ; used to test relocation table
+:begin_text .asciz "I began"
+
+:begin 
+PCR W1 #begin_text
+SYS 3 ;print string 
+
+BL LR #middle ; jump over function definitions (do with BL just for testing)
+
+; function 1
+:sum_func
+ADD W0 W0 W1 
+BR LR 0
+
+:middle
+LDI W0 5
+LDI W1 10
+
+;call function using BLR
+PCR W3 #sum_func_addr
+LDA W3 W3 0 ;grab address
+BLR LR W3 0 ; save PC to LR, goto W3 + 0
+
+ADDI W1 W0 0 ; copy return value to W1
+SYS 1  ;print W1 
+
+SYS 0
+
+
+
+
+
+
