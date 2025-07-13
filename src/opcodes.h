@@ -33,23 +33,18 @@ enum ryvm_opcode {
   RYVM_OP_SHL ,    // SHL W0, W1, W2         ; bitwise shift left
   RYVM_OP_SHR ,    // SHR W0, W1, W2         ; bitwise shift right
   RYVM_OP_BIC ,    // BIC E0 E1 E2           ; if bit at E2 is 0, keep bit at E1. If bit at E2 is 1, clear bit in E1 to 0. Store result in E0
-  RYVM_OP_EQ ,     // EQ W0, W1, W2          ; W1 == W2, store result to W0
-  RYVM_OP_NE ,     // NE W0, W1, W2          ; W1 != W2, store result to W0
-  RYVM_OP_GTS ,    // GTS W0, W1, W2         ; W1 signed integer is greater than W2 signed integer, store result to W0
-  RYVM_OP_LTS ,    // LTS W0, W1, W2         ; W1 signed integer is less than W2 signed integer, store result to W0
-  RYVM_OP_GES ,    // GES W0, W1, W2         ; W1 signed integer is greater than or equal to W2 signed integer, store result to W0
-  RYVM_OP_LES ,    // LES W0, W1, W2         ; W1 signed integer is less than or equal to W2 signed integer, store result to W0
-  RYVM_OP_GTU ,    // GTU W0, W1, W2         ; W1 unsigned integer is greater than W2 unsigned integer, store result to W0
-  RYVM_OP_LTU ,    // LTU W0, W1, W2         ; W1 unsigned integer is less than W2 unsigned integer, store result to W0
-  RYVM_OP_GEU ,    // GEU W0, W1, W2         ; W1 unsigned integer is greater than or equal to W2 unsigned integer, store result to W0
-  RYVM_OP_LEU ,    // LEU W0, W1, W2         ; W1 unsigned integer is les than or equal to W2 unsigned integer, store result to W0
-  RYVM_OP_GTF ,    // GTF W0, W1, W2         ; W1 float is greater than W2 float, store result to W0
-  RYVM_OP_LTF ,    // LTF W0, W1, W2         ; W1 float is less than W2 float, store result to W0
-  RYVM_OP_GEF ,    // GEF W0, W1, W2         ; W1 float is greater or equal to W2 float, store result to W0
-  RYVM_OP_LEF ,    // LEF W0, W1, W2         ; W1 float is less or equal to W2 float, store result to W0
+  RYVM_OP_CPS ,    // CPS W0 W1 W2           ; Signed comparison; Similar to SUB, except SF flags register is updated (specifically the N,Z, and V flags)
+  RYVM_OP_CPU ,    // CPU W0 W1 W2           ; Unsigned comparison; Similar to SUB, except SF flags register is updated (specifically the N,Z, and V flags)
+  RYVM_OP_CPF ,    // CPF W0 W1 W2           ; Floating point comparison; Similar to SUBF, except SF flags register is updated (specifically the N,Z, and V flags)
+  RYVM_OP_CPSI ,   // CPSI W0 #imm           ; Signed comparison to 16-bit immediate; Result is discarded, and SF flags register is updated (specifically the N,Z, and V flags)
+  RYVM_OP_CPUI ,   // CPUI W0 #imm           ; Unsigned comparison to 16-bit immediate; Result is discarded, and SF flags register is updated (specifically the N,Z, and V flags)
   RYVM_OP_B ,      // B #imm                 ; unconditional jump to signed 24-bit PC-relative offset
-  RYVM_OP_BZ ,     // BZ W0 #imm             ; if W0 is zero, jump to PC + #imm
-  RYVM_OP_BNZ ,    // BNZ W0 #imm            ; if W0 is non-zero, jump to PC + #imm
+  RYVM_OP_BEQ,     // BEQ #imm               ; Check status register if previous comparison (CPS, CPU, CPF) states that both operands were equal, if this is true, jump to PC-relative offset.
+  RYVM_OP_BNE,     // BNE #imm               ; Check status register if previous comparison (CPS, CPU, CPF) states that both operands were not equal, if this is true, jump to PC-relative offset.
+  RYVM_OP_BLT,     // BLT #imm               ; Check status register if previous comparison (CPS, CPU, CPF) states that operand1 < operand2, if this is true, jump to PC-relative offset.
+  RYVM_OP_BGT,     // BGT #imm               ; Check status register if previous comparison (CPS, CPU, CPF) states that operand1 > operand2, if this is true, jump to PC-relative offset.
+  RYVM_OP_BLE,     // BLE #imm               ; Check status register if previous comparison (CPS, CPU, CPF) states that operand1 <= operand2, if this is true, jump to PC-relative offset.
+  RYVM_OP_BGE,     // BGE #imm               ; Check status register if previous comparison (CPS, CPU, CPF) states that operand1 >= operand2, if this is true, jump to PC-relative offset.
   RYVM_OP_BR,      // BR W0, #imm            ; pc = W0 + #imm;  indirect jump without saving link register. can be useful for return statement or for executing a specific function within an array of function pointers.
   RYVM_OP_BL ,     // BL W0, #imm            ; branch and link; W0 = pc + 4; pc = pc + imm  ; imm is signed 16bit offset
   RYVM_OP_BLR ,    // BLR W0, W1, #imm       ; W0 = pc + 4;   pc = W1 + imm ; imm is signed 8bits (used for indirect jumps, calls, and returns)

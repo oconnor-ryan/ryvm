@@ -1,0 +1,104 @@
+.max_stack_size 0
+.data
+
+:eq     .asciz "Equal"
+:ne     .asciz "Not Equal"
+
+:lt    .asciz "Less Than Float"
+:gt    .asciz "Greater Than Float"
+:le    .asciz "Less Than or Equal Float"
+:ge    .asciz "Greater Than Or Equal Float"
+
+
+:true   .asciz "True"
+:false  .asciz "False"
+
+; :float1 .hword 1.5
+; :float2 .hword -2.5
+
+; https://www.h-schmidt.net/FloatConverter/IEEE754.html
+
+; smallest binary value for 32-bit floating point
+; :float1 .hword 16777215
+
+; min binary value for 32-bit floating point
+:float1 .hword 4286578687
+
+; max binary value for floating point 32-bit
+:float2 .hword 2139095039
+
+
+
+
+.text 
+
+
+
+PCR W2 #float1
+LDA H2 W2 0
+
+PCR W3 #float2
+LDA H3 W3 0
+
+PCR W1 #eq
+SYS 3  ; print string
+CPF H1 H2 H3  ; signed compare
+SYS 4         ; print 32-bit floating point
+BEQ 8         ; if equal branch to PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+
+PCR W1 #ne
+SYS 3  ; print string
+CPF H1 H2 H3  ; signed compare
+SYS 4         ; print difference from comparison
+BNE 8         ; if not equal branch to PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+PCR W1 #lt
+SYS 3  ; print string
+CPF H1 H2 H3  ; signed compare
+SYS 4         ; print difference from comparison
+BLT 8         ; if true PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+PCR W1 #gt
+SYS 3  ; print string
+CPF H1 H2 H3  ; signed compare
+SYS 4         ; print difference from comparison
+BGT 8         ; if true branch to PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+PCR W1 #le
+SYS 3  ; print string
+CPF H1 H2 H3  ; signed compare
+SYS 4         ; print difference from comparison
+BLE 8         ; if true branch to PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+PCR W1 #ge
+SYS 3  ; print string
+CPF H1 H2 H3  ; signed compare
+SYS 4         ; print difference from comparison
+BGE 8         ; if true branch to PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+SYS 0

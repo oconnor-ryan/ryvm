@@ -1,0 +1,89 @@
+.max_stack_size 0
+.data
+
+
+:eq     .asciz "Equal"
+:ne     .asciz "Not Equal"
+
+:ltu    .asciz "Less Than Unsigned"
+:gtu    .asciz "Greater Than Unsigned"
+:leu    .asciz "Less Than or Equal Unsigned"
+:geu    .asciz "Greater Than Or Equal Unsigned"
+
+
+:true   .asciz "True"
+:false  .asciz "False"
+
+
+.text 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Unsigned Comparison ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;
+
+LDI W2 3 ; 0b011
+LDI W3 5 ; 0b101         0110  1111 1001
+
+
+PCR W1 #eq
+SYS 3  ; print string
+CPU W1 W2 W3  ; unsigned compare
+SYS 1         ; print difference from comparison
+BEQ 8         ; if equal branch to PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+
+PCR W1 #ne
+SYS 3  ; print string
+CPU W1 W2 W3  ; unsigned compare
+SYS 1         ; print difference from comparison
+BNE 8         ; if not equal branch to PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+PCR W1 #ltu
+SYS 3  ; print string
+CPU W1 W2 W3  ; unsigned compare
+SYS 1         ; print difference from comparison
+BLT 8         ; if true PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+PCR W1 #gtu
+SYS 3  ; print string
+CPU W1 W2 W3  ; unsigned compare
+SYS 1         ; print difference from comparison
+BGT 8         ; if true branch to PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+PCR W1 #leu
+SYS 3  ; print string
+CPU W1 W2 W3  ; unsigned compare
+SYS 1         ; print difference from comparison
+BLE 8         ; if true branch to PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+PCR W1 #geu
+SYS 3  ; print string
+CPU W1 W2 W3  ; unsigned compare
+SYS 1         ; print difference from comparison
+BGE 8         ; if true branch to PCR W1 #true
+PCR W1 #false
+B 4           ; skip to SYS 3
+PCR W1 #true
+SYS 3
+
+SYS 0

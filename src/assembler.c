@@ -161,6 +161,8 @@ void ryvm_assembler_print(struct ryvm_assembler_state *asm_state) {
           offset[0] = entry->d.ins.regs[0];
           offset[1] = entry->d.ins.regs[1];
           offset[2] = entry->d.ins.regs[2];
+
+          //sign extend value instead
           offset[3] = 0;
 
 
@@ -359,6 +361,13 @@ int ryvm_assembler_parse_number_list(struct ryvm_assembler_state *asm_state, enu
     if(tok.tag == RYVM_TOKEN_INT_LITERAL || tok.tag == RYVM_TOKEN_FLOAT_LITERAL) {
       e.tag = data_type; 
       e.d.num = tok.d.num;
+
+      //the lexer returns the float as a 64-bit value by default. 
+      //If we expect a single precision float, convert it to that type.
+      if(tok.tag == RYVM_TOKEN_FLOAT_LITERAL && bytewidth <= 4) {
+        e.d.num.f32 = (float) e.d.num.f64;
+      }
+
       e.using_placeholder = 0;
     } else if(tok.tag == RYVM_TOKEN_LABEL_PC_OFF_EXPR) {
       e.tag = data_type; //Offset can have different bytewidth depending on data type

@@ -20,13 +20,21 @@ A register-based process virtual machine and assembler. It can compile human-rea
 Currently, I have a single build_vm.sh file that only runs on Unix-like systems (Linux or MacOS).
 Here's a few examples to use when building the script:
 
-`./build_vm.sh clang assemble_and_run.c # build the VM using Clang compiler and include the "assemble_and_run.c" file that contains the main() function to run a single RYVM executable.`
+```
+./build_vm.sh clang assemble_and_run.c # build the VM using Clang compiler and include the "assemble_and_run.c" file that contains the main() function to run a single RYVM executable.
+```
 
-`./build_vm.sh gcc assemble_and_run.c # build the VM using GCC compiler and include the "assemble_and_run.c" file that contains the main() function to run a single RYVM executable.`
+```
+./build_vm.sh gcc assemble_and_run.c # build the VM using GCC compiler and include the "assemble_and_run.c" file that contains the main() function to run a single RYVM executable.
+```
 
-`./build_vm.sh clang tests/general_tests.c # build the VM using Clang compiler and include the "tests/general_tests.c" file that contains the main() function to run the test files in tests/programs.`
+```
+./build_vm.sh clang tests/general_tests.c # build the VM using Clang compiler and include the "tests/general_tests.c" file that contains the main() function to run the test files in tests/programs.
+```
 
-`./build_vm.sh gcc tests/general_tests.c # build the VM using GCC compiler and include the "tests/general_tests.c" file that contains the main() function to run the test files in tests/programs.`
+```
+./build_vm.sh gcc tests/general_tests.c # build the VM using GCC compiler and include the "tests/general_tests.c" file that contains the main() function to run the test files in tests/programs.
+```
 
 ## Overview
 Here is a general overview of the RYVM virtual machine:
@@ -85,8 +93,22 @@ Register Bytewidth | Least Significant Bytes                        Most Signifi
     - Is an alias of register W60
   - SF
     - The status register. Stores some flags relating to the state of the VM.
-    - There are currently no specified flags yet. 
     - Is an alias of register W59
+    - There are currently 3 flags being tracked:
+      - N
+        - Negative (or sign) bit.
+        - Set to 1 if the result of a comparison is negative, otherwise set to 0.
+      - V
+        - Overflow bit.
+        - Set to 1 if a overflow/underflow occurs during a comparison, otherwise set to 0.
+        - This flag gets set for:
+          - Signed Integer Comparisons
+          - Unsigned Integer Comparisons
+          - Floating Point Number Comparisons
+      - Z
+        - Zero bit.
+        - Set to 1 if the result of a comparison is zero, otherwise set to 1.
+
 
 - Despite W59-W63 being "special" registers, you can still manipulate them like any other register.
   Just be warned that modifying their values may cause issues if you don't know the purpose of those
@@ -108,7 +130,7 @@ the stack pointer never goes out-of-bounds.
 
 
 ## RYVM Assembly Instruction Set
-There are currently 49 different instructions. All instructions are 4 bytes long. All instructions start with a 1-byte opcode.
+There are currently 44 different instructions. All instructions are 4 bytes long. All instructions start with a 1-byte opcode.
 
 
 ### Formats
@@ -157,58 +179,57 @@ Bits:  31-24              23-16                       15-8                      
 
 ### Mnemonics
 Note that there are no pseudo-instructions; Each mnemonic directly corresponds to a opcode inside RYVM.
+Also, in the below list:
+  - `imm` is a placeholder for an immediate value, which is any signed or unsigned integer literal
+  - `;` is the start of a comment about the mnemonic.
+
 Here is the current list of mnemonics that correspond to each opcode for RYVM:
 
 ```
-LDA E0, W1, imm        ; Load from address at (W1 + imm) and put the 8 bits into E0
-PCR W0, imm            ; Get PC-relative address using a 2-byte signed offset and store it in W0
-LDI W0, imm            ; load 2-byte immediate value that's sign-extended to the specified byte-width. Can only be integers.
-STR E0, W1, imm        ; Store E0 into address stored at (W1 + imm)
-FXFP W0 W1 imm         ; Convert fixed point to floating point. W0 = (float) W1; where imm[0] determines if W1 is signed or unsigned, and imm[1:7] is the 7-bit number representing the number of fractional bits in W1 
-FPFX W0 W1 imm         ; Convert floating point to fixed point. W0 = imm & 0b10000000 == 0 ? (unsigned int) W1 : int(W1); where imm[0] determines if W0 is signed or unsigned, and imm[1:7] is the 7-bit number representing the number of fractional bits in W0 
-ADDI W0 W1 imm         ; W1 + imm = W0 ; imm is signed 8 bits
-SUBI W0 W1 imm         ; W1 - imm = W0 ; imm is signed 8 bits
-ADD E0, E1, E2         ; Add 8bit 2-s complement integers and store it in E0
-SUB E0, E1, E2         ; Subtract 8bit 2-s complement integers and store it in E0
-MUL E0, E1, E2         ; multiply 2 signed integers 
-MULU E0, E1, E2        ; multiply 2 unsigned integers 
-DIV E0, E1, E2         ; divide 2 signed integers 
-DIVU E0, E1, E2        ; divide 2 unsigned integers 
-REM E0, E1, E2         ; remainder 2 signed integers 
-REMU E0, E1, E2        ; remainder 2 unsigned integers 
-ADDF W0, W1, W2        ; Add 64bit floating point and store it in W0
-SUBF W0, W1, W2        ; Subtract 64bit floating point and store it in W0
-MULF W0, W1, W2        ; Multiply 64bit floating point and store it in W0
-DIVF W0, W1, W2        ; Divide 64bit floating point and store it in W0
-REMF W0, W1, W2        ; Remainder 64bit floating point and store it in W0
-AND W0, W1, W2         ; bitwise AND operation
-OR W0, W1, W2          ; bitwise OR operation
-XOR W0, W1, W2         ; bitwise XOR operation
-XORI W0, W1, imm      ; bitwise XOR operation with immediate 8bit value sign extended to bytewidth of source register
-SHL W0, W1, W2         ; bitwise shift left
-SHR W0, W1, W2         ; bitwise shift right
-BIC E0 E1 E2           ; if bit at E2 is 0, keep bit at E1. If bit at E2 is 1, clear bit in E1 to 0. Store result in E0
-EQ W0, W1, W2          ; W1 == W2, store result to W0
-NE W0, W1, W2          ; W1 != W2, store result to W0
-GTS W0, W1, W2         ; W1 signed integer is greater than W2 signed integer, store result to W0
-LTS W0, W1, W2         ; W1 signed integer is less than W2 signed integer, store result to W0
-GES W0, W1, W2         ; W1 signed integer is greater than or equal to W2 signed integer, store result to W0
-LES W0, W1, W2         ; W1 signed integer is less than or equal to W2 signed integer, store result to W0
-GTU W0, W1, W2         ; W1 unsigned integer is greater than W2 unsigned integer, store result to W0
-LTU W0, W1, W2         ; W1 unsigned integer is less than W2 unsigned integer, store result to W0
-GEU W0, W1, W2         ; W1 unsigned integer is greater than or equal to W2 unsigned integer, store result to W0
-LEU W0, W1, W2         ; W1 unsigned integer is les than or equal to W2 unsigned integer, store result to W0
-GTF W0, W1, W2         ; W1 float is greater than W2 float, store result to W0
-LTF W0, W1, W2         ; W1 float is less than W2 float, store result to W0
-GEF W0, W1, W2         ; W1 float is greater or equal to W2 float, store result to W0
-LEF W0, W1, W2         ; W1 float is less or equal to W2 float, store result to W0
+LDA E0 W1 imm         ; Load from address at (W1 + imm) and put the 8 bits into E0
+PCR W0 imm            ; Get PC-relative address using a 2-byte signed offset and store it in W0
+LDI W0 imm            ; load 2-byte immediate value that's sign-extended to the specified byte-width. Can only be integers.
+STR E0 W1 imm         ; Store E0 into address stored at (W1 + imm)
+FXFP W0 W1 imm        ; Convert fixed point to floating point. W0 = (float) W1; where imm[0] determines if W1 is signed or unsigned, and imm[1:7] is the 7-bit number representing the number of fractional bits in W1 
+FPFX W0 W1 imm        ; Convert floating point to fixed point. W0 = imm & 0b10000000 == 0 ? (unsigned int) W1 : int(W1); where imm[0] determines if W0 is signed or unsigned, and imm[1:7] is the 7-bit number representing the number of fractional bits in W0 
+ADDI W0 W1 imm        ; W1 + imm = W0 ; imm is signed 8 bits
+SUBI W0 W1 imm        ; W1 - imm = W0 ; imm is signed 8 bits
+ADD E0 E1 E2          ; Add 8bit 2-s complement integers and store it in E0
+SUB E0 E1 E2          ; Subtract 8bit 2-s complement integers and store it in E0
+MUL E0 E1 E2          ; multiply 2 signed integers 
+MULU E0 E1 E2         ; multiply 2 unsigned integers 
+DIV E0 E1 E2          ; divide 2 signed integers 
+DIVU E0 E1 E2         ; divide 2 unsigned integers 
+REM E0 E1 E2          ; remainder 2 signed integers 
+REMU E0 E1 E2         ; remainder 2 unsigned integers 
+ADDF W0 W1 W2         ; Add 64bit floating point and store it in W0
+SUBF W0 W1 W2         ; Subtract 64bit floating point and store it in W0
+MULF W0 W1 W2         ; Multiply 64bit floating point and store it in W0
+DIVF W0 W1 W2         ; Divide 64bit floating point and store it in W0
+REMF W0 W1 W2         ; Remainder 64bit floating point and store it in W0
+AND W0 W1 W2          ; bitwise AND operation
+OR W0 W1 W2           ; bitwise OR operation
+XOR W0 W1 W2          ; bitwise XOR operation
+XORI W0 W1 imm        ; bitwise XOR operation with immediate 8bit value sign extended to bytewidth of source register
+SHL W0 W1 W2          ; bitwise shift left
+SHR W0 W1 W2          ; bitwise shift right
+BIC E0 E1 E2          ; if bit at E2 is 0, keep bit at E1. If bit at E2 is 1, clear bit in E1 to 0. Store result in E0
+CPS W0 W1 W2          ; Signed comparison; Similar to SUB, except SF flags register is updated (specifically the N,Z, and V flags)
+CPU W0 W1 W2          ; Unsigned comparison; Similar to SUB, except SF flags register is updated (specifically the N,Z, and V flags)
+CPF W0 W1 W2          ; Floating point comparison; Similar to SUBF, except SF flags register is updated (specifically the N,Z, and V flags)
+CPSI W0 imm           ; Signed comparison to 16-bit immediate; Result is discarded, and SF flags register is updated (specifically the N,Z, and V flags)
+CPUI W0 imm           ; Unsigned comparison to 16-bit immediate; Result is discarded, and SF flags register is updated (specifically the N,Z, and V flags)
 B imm                 ; unconditional jump to signed 24-bit PC-relative offset
-BZ W0 imm             ; if W0 is zero, jump to PC + imm
-BNZ W0 imm            ; if W0 is non-zero, jump to PC + imm
-BR W0, imm            ; pc = W0 + imm;  indirect jump without saving link register. can be useful for return statement or for executing a specific function within an array of function pointers.
-BL W0, imm            ; branch and link; W0 = pc + 4; pc = pc + imm  ; imm is signed 16bit offset
-BLR W0, W1, imm       ; W0 = pc + 4;   pc = W1 + imm ; imm is signed 8bits (used for indirect jumps, calls, and returns)
-SYS imm               ; a external function call to call OS-specific functions in a cross-platform way, using a 24bit syscall number 
+BEQ imm               ; Check status register flags (Z=1) if previous comparison (CPS, CPU, CPF) states that both operands were equal, if this is true, jump to PC-relative offset.
+BNE imm               ; Check status register flags (Z=0) if previous comparison (CPS, CPU, CPF) states that both operands were not equal, if this is true, jump to PC-relative offset.
+BLT imm               ; Check status register flags (N!=V) if previous comparison (CPS, CPU, CPF) states that operand1 < operand2, if this is true, jump to PC-relative offset.
+BGT imm               ; Check status register flags (N=V and Z=0) if previous comparison (CPS, CPU, CPF) states that operand1 > operand2, if this is true, jump to PC-relative offset.
+BLE imm               ; Check status register flags (N!=V or Z=1) if previous comparison (CPS, CPU, CPF) states that operand1 <= operand2, if this is true, jump to PC-relative offset.
+BGE imm               ; Check status register flags (N=V or Z=1) if previous comparison (CPS, CPU, CPF) states that operand1 >= operand2, if this is true, jump to PC-relative offset.
+BR W0 imm             ; pc = W0 + imm;  indirect jump without saving link register. can be useful for return statement or for executing a specific function within an array of function pointers.
+BL W0 imm             ; branch and link; W0 = pc + 4; pc = pc + imm  ; imm is signed 16bit offset
+BLR W0 W1 imm         ; W0 = pc + 4;   pc = W1 + imm ; imm is signed 8bits (used for indirect jumps, calls, and returns)
+SYS imm                ; a external function call to call OS-specific functions in a cross-platform way, using a 24bit syscall number 
 
 ```
 

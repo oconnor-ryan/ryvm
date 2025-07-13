@@ -4,16 +4,11 @@
 
 .data
   :data_label .word 2
-  :0          .word 0
   :1          .word 1
 
   :arr        .word 1 2 3 4 ; array of 4 8-byte integers (1, 2, 3, 4)
 
 .text
-  PCR W0 #0 ; syscall 0
-  LDA W0 W0 0
-  PCR W2 #0 
-  LDA W2 W2 0
   PCR W3 #1
   LDA W3 W3 0
   PCR W4 #ins_label    ; use PC-relative offset to go to address to instruction and puts it in W4
@@ -21,8 +16,10 @@
   LDA W1 W1 0            ; load value from address
   :ins_label 
   SUB W1 W1 W3
-  EQ  W5 W1 W2            ; check if W1 now equal to W2 (holds 0)
   SYS 1
-  BZ W5 #ins_label    ; jump back to :ins_label if last comparison evals to false
+  CPSI W1 0           ; check if W1 is equal to 0
+  BNE #ins_label      ; if not equal to 0, repeat loop
+
+  LDI W0 0            ; set exit code to 0
   SYS 0               ; end program with the return integer stored in register W4
     

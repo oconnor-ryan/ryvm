@@ -18,10 +18,10 @@
 #define RYVM_SF_REG 59  // status flag register (similar to RFLAGS on x86-64 and CPSR on ARM64)
 
 
-
 #define RYVM_INS_SIZE 4
 
 
+int32_t ryvm_vm_helper_cast_int_24_to_32(uint8_t bytes[3]);
 
 
 
