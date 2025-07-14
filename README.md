@@ -144,10 +144,10 @@ Register Bytewidth | Least Significant Bytes                        Most Signifi
         - Zero bit.
         - Set to 1 if the result of a comparison is zero, otherwise set to 1.
 
-    - These flag gets set for:
-          - Signed Integer Comparisons
-          - Unsigned Integer Comparisons
-          - Floating Point Number Comparisons
+    - These flags get set during:
+      - Signed Integer Comparisons
+      - Unsigned Integer Comparisons
+      - Floating Point Number Comparisons
 
 
 - Despite W59-W63 being "special" registers, you can still manipulate them like any other register.
@@ -220,7 +220,7 @@ Bits:  31-24              23-16                       15-8                      
 ### Mnemonics
 Note that there are no pseudo-instructions; Each mnemonic directly corresponds to a opcode inside RYVM.
 Also, in the below list:
-  - `imm` is a placeholder for an immediate value, which is any signed or unsigned integer literal
+  - `imm` is a placeholder for an immediate value, which is any signed or unsigned integer literal or a label expression.
   - `;` is the start of a comment about the mnemonic.
 
 Here is the current list of mnemonics that correspond to each opcode for RYVM:
