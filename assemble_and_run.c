@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "src/assembler.h"
 #include "src/vm.h"
 
@@ -7,6 +8,11 @@ int main(int argc, char **argv) {
 
   if(argc != 3) {
     printf("Must have 2 arguments!\n");
+    return 1;
+  }
+
+  if(strcmp(argv[1], argv[2]) == 0) {
+    printf("The input and output files cannot be identical!\n");
     return 1;
   }
 
