@@ -1,5 +1,5 @@
 # RYVM
-A register-based process virtual machine and assembler. It can compile human-readable RYVM Assembly code into RYVM bytecode that can be run by the virtual machine.
+A register-based process virtual machine. It comes with an assembler that compiles human-readable RYVM Assembly code into RYVM bytecode that can be run by the virtual machine.
 
 > Note that this project is still in development and the instruction set is prone to change. 
 > Don't use this project in a production environment. 
@@ -76,7 +76,7 @@ Example Usage:
 ## Overview
 Here is a general overview of the RYVM virtual machine:
 
-- RYVM is a 64-bit process virtual machine. It assumes all addresses are 64-bits and can store
+- RYVM is a 64-bit process virtual machine. It assumes all addresses are 64 bits and can store
   up to 64 bits in each of its registers.
 
 ### General Definitions
@@ -511,6 +511,29 @@ and has no documentation. Assume that a RYVM executable you compiled in a previo
 RYVM will not work on a newer version.
 
 Once I finish all of the main features of the VM, I will document the file format for the RYVM Executable.
+
+
+## Syscalls
+The opcode corresponding to the SYS mnemonic is a special instruction that takes in a unsigned 24-bit syscall number. Similar
+to the BL and BLR instructions, it acts like a function call, using the VM's registers as arguments.
+
+Its current role is to allow more actions to be performed by the VM without adding more opcodes. This allows us
+to limit our opcode size to 1 byte (which limits us to 255 opcodes) while allowing for 16,777,215 more functions that the VM can support. In the future, I hope to use this as a way to setup a Foreign Function Interface (FFI) to interact with native
+libraries.
+
+The below list of syscalls is prone to change, and most of them are currently used for testing.
+
+- SYS 0
+  - Exits the virtual machine, Uses the unsigned value in register W0 as the exit code of the VM.
+- SYS 1
+  - Print the W1 register as a 64-bit unsigned integer.
+- SYS 2
+  - Print the W1 register as a 64-bit floating point number.
+- SYS 3
+  - Print an null-terminated ASCII string pointed to by the address in the W1 register.
+- SYS 4
+  - Print the H1 register as a 32-bit floating point number
+
 
 ## Similar Projects
 - Java Virtual Machine
