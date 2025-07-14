@@ -31,11 +31,13 @@ There are 2 executables generated from this project:
   - The RYVM VM (stored in generated_bins/ryvm)
 
 
-Use `make` to build both executables.
+Use `make` or `make release` to build both executables in release mode.
 
-Use `make build_asm` to only build the RYVM Assembler.
+Use `make debug` to build both executables in debug mode.
 
-Use `make build_vm` to only build the RYVM VM.
+Use `make build_asm` to only build the RYVM Assembler in release mode.
+
+Use `make build_vm` to only build the RYVM VM in release mode.
 
 Use `make run_sample` to compile a sample RYVM Assembly file to a RYVM bytecode file, then have the VM run the bytecode from that file.
 
@@ -44,6 +46,7 @@ Use `make run_asm_sample` to compile a sample RYVM Assembly file to a RYVM bytec
 Use `make run_vm_sample` to have the VM run the bytecode from the output file previously written to by `make run_asm_sample`.
 
 Use `make clean` to clean up all generated executables and object files.
+
 
 ### About the Executables
 

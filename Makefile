@@ -4,11 +4,14 @@
 
 # Default compiler is clang. There is a "build_gcc" rule you can use for the GCC compiler
 CC=clang
-CFLAGS= -fcolor-diagnostics -fansi-escape-codes -g -std=c99 -Wall -Wextra -pedantic
 
-# The LDFLAGS variable sets flags for linker
-#  -lm   says to link in libm (the math library)
-LDFLAGS = -lm
+DEBUG_FLAGS=-fcolor-diagnostics -fansi-escape-codes -g -std=c99 -Wall -Wextra -pedantic -Werror -Wundef
+RELEASE_FLAGS=-std=c99 -Wall -Wextra -pedantic -Werror -Wundef -O2
+
+
+# Note that these are release flags. The debug version has a different set of flags
+CFLAGS= $(RELEASE_FLAGS)
+
 
 SRC_DIR = src
 OBJ_DIR = generated_bins
@@ -38,7 +41,7 @@ AS_SRCS=$(wildcard $(AS_SRC_DIR)/*.c)
 
 
 # Used to print variable from Makefile for basic debugging 
-$(info $(AS_SRCS))
+#$(info $(AS_SRCS))
 
 #use notdir to remove the directory part of the AS_SRCS files and replace with our object directory
 #AS_OBJS=$(addprefix $(AS_OBJ_DIR)/,$(notdir $(AS_SRCS)))
@@ -49,7 +52,7 @@ $(info $(AS_SRCS))
 AS_OBJS=$(patsubst $(AS_SRC_DIR)/%.c,$(AS_OBJ_DIR)/%.o,$(AS_SRCS))
 
 # Used to print variable from Makefile for basic debugging 
-$(info $(AS_OBJS))
+#$(info $(AS_OBJS))
 
 
 VM_SRCS=$(wildcard $(VM_SRC_DIR)/*.c) 
@@ -58,6 +61,27 @@ VM_OBJS=$(patsubst $(VM_SRC_DIR)/%.c,$(VM_OBJ_DIR)/%.o,$(VM_SRCS))
 
 #our current "compile and link" rule
 all: build_asm build_vm
+
+
+
+release: all
+
+
+debug: CFLAGS=$(DEBUG_FLAGS)
+debug: all
+
+
+
+build_asm: $(AS_TARGET)
+
+build_vm: $(VM_TARGET)
+
+
+# target specific values can be set like so
+build_gcc: CC=gcc 
+build_gcc: CFLAGS= -Wall -Wextra -Werror -pedantic -std=c99 -O2 # release flags
+build_gcc: LDFLAGS = -lm
+build_gcc: all  
 
 
 run_sample: run_asm_sample run_vm_sample
@@ -73,18 +97,6 @@ run_vm_sample: $(VM_TARGET)
 	$(VM_TARGET) $(SAMPLE_VM_ARGS)
 
 
-
-
-build_asm: $(AS_TARGET)
-
-build_vm: $(VM_TARGET)
-
-
-# target specific values can be set like so
-build_gcc: CC=gcc 
-build_gcc: CFLAGS= -Wall -Wextra -pedantic -std=c99 -g 
-build_gcc: LDFLAGS = -lm
-build_gcc: all  
 
 
 #link all object files to single target
