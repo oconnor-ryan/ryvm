@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "src/assembler.h"
-#include "src/vm.h"
+#include "assembler.h"
 
 int main(int argc, char **argv) {
 
@@ -39,28 +38,6 @@ int main(int argc, char **argv) {
 
   fclose(in);
   fclose(out);
-
-  
-  FILE *bytecode = fopen(argv[2], "r");
-  if(bytecode == NULL) {
-    printf("Cannot open output file %s\n", argv[2]);
-  }
-
-  struct ryvm vm;
-  if(!ryvm_vm_load(&vm, bytecode)) {
-    printf("Error while loading RYC file!\n");
-    fclose(bytecode);
-    return 1;
-  }
-
-  //we loaded program into memory, no need to read from input file anymore
-  fclose(bytecode);
-
-  printf("Program result: %lld\n", ryvm_vm_run(&vm));
-  ryvm_vm_free(&vm);
-
-  
-
 
   return 0;
 }

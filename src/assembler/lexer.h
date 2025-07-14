@@ -2,14 +2,11 @@
 #define RYVM_LEXER_H
 
 #include <stdint.h>
-#include "opcodes.h"
-#include "memory/string_builder.h"
-#include "types.h"
-
-//#include "assembler.h"
-
 #include <stdio.h>
 
+#include "../opcodes.h"
+#include "../memory/string_builder.h"
+#include "../types.h"
 
 
 

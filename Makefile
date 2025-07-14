@@ -13,56 +13,106 @@ LDFLAGS = -lm
 SRC_DIR = src
 OBJ_DIR = generated_bins
 
-MAIN_FILE_SRC=assemble_and_run.c
-MAIN_FILE_OBJ=$(OBJ_DIR)/assembler_and_run.o
 
-SAMPLE_ARGS=tests/programs/arith.ryasm tests/programs/arith.ryasm.ryc
+SAMPLE_VM_ARGS=tests/programs/arith.ryasm.ryc
+SAMPLE_AS_ARGS=tests/programs/arith.ryasm $(SAMPLE_VM_ARGS)
 
-TARGET=generated_bins/ryvm
+AS_TARGET=$(OBJ_DIR)/ryasm
+VM_TARGET=$(OBJ_DIR)/ryvm
+
+# WATCH OUT FOR TRAILING SPACES. They are counted as part of the string even if you did not want them
+AS_SRC_DIR=$(SRC_DIR)/assembler
+VM_SRC_DIR=$(SRC_DIR)/vm
+
+AS_OBJ_DIR=$(OBJ_DIR)/assembler
+VM_OBJ_DIR=$(OBJ_DIR)/vm
+
+
+#These hold all files that are used in both the VM target and the assembler target.
+SHARED_SRCS=$(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/memory/*.c)
+SHARED_OBJS=$(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SHARED_SRCS))
+
 
 #Get List of source files. Make cannot search recursively, so we will add subfolders here
-SRCS=$(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/error/*.c) $(wildcard $(SRC_DIR)/logger/*.c) $(wildcard $(SRC_DIR)/memory/*.c)
-
-#use pattern matching and patsubst function to replace the src/ in each SRCS file with generated_bins/
-#these are the names of our object files
-OBJS=$(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
+AS_SRCS=$(wildcard $(AS_SRC_DIR)/*.c)
 
 
+# Used to print variable from Makefile for basic debugging 
+$(info $(AS_SRCS))
 
+#use notdir to remove the directory part of the AS_SRCS files and replace with our object directory
+#AS_OBJS=$(addprefix $(AS_OBJ_DIR)/,$(notdir $(AS_SRCS)))
+
+
+# Watch out, DO NOT PUT SPACES between COMMAS in function arguments, the spaces will be included in the 
+# argument itself and will mess up the string replacement.
+AS_OBJS=$(patsubst $(AS_SRC_DIR)/%.c,$(AS_OBJ_DIR)/%.o,$(AS_SRCS))
+
+# Used to print variable from Makefile for basic debugging 
+$(info $(AS_OBJS))
+
+
+VM_SRCS=$(wildcard $(VM_SRC_DIR)/*.c) 
+VM_OBJS=$(patsubst $(VM_SRC_DIR)/%.c,$(VM_OBJ_DIR)/%.o,$(VM_SRCS))
 
 
 #our current "compile and link" rule
-all: $(TARGET)
+all: build_asm build_vm
+
+
+run_sample: run_asm_sample run_vm_sample
+
+
+# run the assembler with a sample set of arguments
+run_asm_sample: $(AS_TARGET)
+	$(AS_TARGET) $(SAMPLE_AS_ARGS)
+
+
+# run the vm with a sample set of arguments
+run_vm_sample: $(VM_TARGET)
+	$(VM_TARGET) $(SAMPLE_VM_ARGS)
+
+
+
+
+build_asm: $(AS_TARGET)
+
+build_vm: $(VM_TARGET)
 
 
 # target specific values can be set like so
 build_gcc: CC=gcc 
 build_gcc: CFLAGS= -Wall -Wextra -pedantic -std=c99 -g 
 build_gcc: LDFLAGS = -lm
-build_gcc: all  # 
-
-
-# run the executable with a list of arguments
-sample: $(TARGET)
-	$(TARGET) $(SAMPLE_ARGS)
-
-
+build_gcc: all  
 
 
 #link all object files to single target
-$(TARGET): $(OBJS) $(MAIN_FILE_OBJ)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(MAIN_FILE_OBJ)
+$(AS_TARGET): $(AS_OBJS) $(SHARED_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(AS_OBJS) $(SHARED_OBJS)
+
+
+$(VM_TARGET): $(VM_OBJS) $(SHARED_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(VM_OBJS) $(SHARED_OBJS)
 
 
 
-# compile each source file to its appropriate .o file ONLY IF the source file was modified
-$(OBJ_DIR)/%.o : $(SRC_DIR)/%.c 
+
+#dont use this since this implies that all object files are dependent on ALL source files,
+#not just the source file that the object is compiled from.
+#$(AS_OBJS): $(AS_SRCS)
+#	mkdir -p $(@D)
+#	$(CC) $(CFLAGS) -c $< -o $@
+	
+
+#compile source files to object files only if they were modified
+
+#Use pattern matching so that each object file only depends on the source file that it was compiled from.
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-#separate rule needed since main file is not in src directory
-$(MAIN_FILE_OBJ): $(MAIN_FILE_SRC)
-	$(CC) $(CFLAGS) -c $< -o $@
+
 
 # Phony means not a "real" target, it doesn't build anything
 # The phony target "clean" is used to remove all compiled object files.
@@ -72,4 +122,5 @@ $(MAIN_FILE_OBJ): $(MAIN_FILE_SRC)
 .PHONY: clean
 
 clean:
-	$(RM) $(TARGET) $(OBJS) $(MAIN_FILE_OBJ)
+	$(RM) -r $(OBJ_DIR)/*
+

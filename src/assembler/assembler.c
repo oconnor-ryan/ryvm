@@ -1,9 +1,10 @@
-#include "assembler.h"
-#include "lexer.h"
 #include <assert.h>
 #include <string.h>
-#include "helper.h"
 #include <stdlib.h>
+
+#include "assembler.h"
+#include "lexer.h"
+#include "../helper.h"
 
 //the largest positive and negative offset for 8-bit integer
 #define MAX_PC_REL_8_OFFSET_NEG 128

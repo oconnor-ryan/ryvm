@@ -1,9 +1,10 @@
-#include "lexer.h"
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
+
+#include "lexer.h"
 #include "assembler.h"
-#include "helper.h"
+#include "../helper.h"
 
 char ryvm_lexer_read_char(struct ryvm_lexer *lexer) {
   lexer->reached_end_line = 0;

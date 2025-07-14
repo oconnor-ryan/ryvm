@@ -7,8 +7,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include "memory/memory.h"
-#include "opcodes.h"
+#include "../opcodes.h"
 
 enum ryvm_num_type {
   RYVM_INT_TYPE_UINT8,

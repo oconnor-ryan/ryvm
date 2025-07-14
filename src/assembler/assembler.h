@@ -1,10 +1,10 @@
 #ifndef RYVM_ASSEMBLER_H
 #define RYVM_ASSEMBLER_H
 
-
-#include "opcodes.h"
-#include "lexer.h"
 #include <stdio.h>
+
+#include "../opcodes.h"
+#include "lexer.h"
 
 
 //config

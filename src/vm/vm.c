@@ -1,11 +1,13 @@
-#include "assembler.h"
-#include "vm.h"
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
 #include <math.h>
 #include <fenv.h> //used to check for floating point overflow and other exceptions
-#include "helper.h"
+
+
+#include "../helper.h"
+#include "vm.h"
+
 
 /*
   Currently, we are using REAL memory addresses in order to reference
