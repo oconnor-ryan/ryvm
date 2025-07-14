@@ -3,7 +3,8 @@
 
 #include <stdint.h>
 
-//Note: you're dead if you change the order of these.
+//Note: changing the order of these opcodes will change the numeric value of the opcode
+//itself. Be aware of this when altering the order of these opcodes.
 enum ryvm_opcode {
   RYVM_OP_LDA,     // LDA E0, W1, #off       ; Load from address at (W1 + off) and put the 8 bits into E0
   RYVM_OP_PCR,     // PCR W0, #1             ; Get PC-relative address using a 2-byte signed offset and store it in W0

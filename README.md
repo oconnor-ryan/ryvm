@@ -5,11 +5,12 @@ A register-based process virtual machine and assembler. It can compile human-rea
 > Don't use this project in a production environment. 
 
 ## TODO List
-- Add support for 16-bit IEEE 754 floating point calculations without depending on compiler extensions.
+- Fully implement the FPFX and FXFP instructions.
+- Add semantic checks in assembler to prevent using 8-bit or 16-bit register widths with floating point operations, since they currently only support 32-bit and 64-bit floating point numbers.
 - Add support for dynamic memory allocations.
 - Define a default calling convention for subroutines and syscalls.
-- Fix issues where the bytewidth of a register is sometimes not respected and the full 64-bit register is processed.
-- Fully implement the FPFX and FXFP instructions.
+- Add support for 16-bit IEEE 754 floating point calculations without depending on compiler extensions.
+- Find a 8-bit floating point standard (minifloat).
 - Allow two or more compiled RYVM bytecode files to be linked into one RYVM executable.
 - Allow programmers to configure a RYVM executable a "debug mode", where the VM can perform
   memory bounds-checking and print debug information when encountering an error that would normally
@@ -19,17 +20,20 @@ A register-based process virtual machine and assembler. It can compile human-rea
 
 ## Building the Project
 This project was written using standard C99. No compiler extensions or platform-specific APIs
-are used in this project, which should make this project cross-platform.
+are used in this project, so this should work on MacOS, Linux, and Windows.
 
-You can build and run the project using either the ./build_vm.sh Bash script or using Make.
-Both build options will only work on Unix-based OS's (like Linux or MacOS), though you can
-alter the build_vm.sh to run on Windows CMD if needed.
+You can build and run the project using Make. While its mostly used in Unix-based OSs, there
+are versions available for Windows, or you can use the Windows Subsystem for Linux to install 
+and use Make.
 
-For Make, just run `make` to build and link the project, or run `make sample` to run the executable
-along with one of the sample RYVM assembly programs as a argument. You can edit the SAMPLE_ARGS
-variable in the Makefile to modify the 2 arguments that the executable takes.
-
+By default, running `make` will build the entire project using the Clang compiler. 
 The executable will be stored at ./generated_bins/ryvm.
+
+Use `make build_gcc` to build the entire project using the GCC compiler.
+
+Use `make clean` to clean up all generated executables and object files.
+
+Use `make sample` to run the generated executable along with one of the sample RYVM assembly programs as a argument. You can edit the SAMPLE_ARGS variable in the Makefile to modify the 2 arguments that the executable takes.
 
 
 ### About the Executable
@@ -90,7 +94,8 @@ Register Bytewidth | Least Significant Bytes                        Most Signifi
 
 - There are currently five special registers:
   - PC 
-    - The program counter. Stores the address of the next instruction to execute.
+    - The program counter. Stores the address of the NEXT instruction to execute.
+      - This does not store the address of the currently executing instruction.
     - Is a alias of register W63
   - SP 
     - The stack pointer. Stores the address to the top of the VM's stack.
@@ -111,13 +116,15 @@ Register Bytewidth | Least Significant Bytes                        Most Signifi
       - V
         - Overflow bit.
         - Set to 1 if a overflow/underflow occurs during a comparison, otherwise set to 0.
-        - This flag gets set for:
-          - Signed Integer Comparisons
-          - Unsigned Integer Comparisons
-          - Floating Point Number Comparisons
+        - Unlike other instruction sets, this bit can be set from either a signed overflow or a unsigned overflow.
       - Z
         - Zero bit.
         - Set to 1 if the result of a comparison is zero, otherwise set to 1.
+
+    - These flag gets set for:
+          - Signed Integer Comparisons
+          - Unsigned Integer Comparisons
+          - Floating Point Number Comparisons
 
 
 - Despite W59-W63 being "special" registers, you can still manipulate them like any other register.
@@ -246,12 +253,146 @@ SYS imm                ; a external function call to call OS-specific functions 
 ## RYVM Assembly Syntax.
 If you want examples of the current syntax of RYVM Assembly, look at the test/programs directory and check the .ryasm files. Here's a summary of the syntax:
 
-### Comments
-RYVM Assembly uses the ';' character to specify a single line comment. There are no block comments:
+
+### RYVM Assembly Grammer (BNF)
+In the below grammer:
+- Non-Terminals are enclosed in angle brackets <>
+- String Literals are enclosed in ' ' or  " "
+- Empty string is ""
+- Uppercase words are terminals that represent a category of literals. 
+  - ASCII represents the set of all 128 ASCII character literals
+  - NON_WHITESPACE_ASCII represents the set of all ASCII characters excluding whitespace characters (spaces, tabs, newlines, carriage returns, etc)
+  - MNEMONICS represents all of the current mnemonics listed in the Mnemonics section of this README.
+  - NEWLINE represents the newline character, ususally denoted by '\n' (or ASCII character 10)
+
+- Note that no rule was specified for single line comments, though they are allowed in RYVM Assembly files.
+
 ```
-; Here is a comment
+  <Prog> ::= <Config> <LF> <Data> <LF> <Text>
+
+  <Config> ::= <MaxStackSize> <Integer>
+
+
+  <Data> ::= '.data' <LF> <DataBody>
+  <DataBody> ::=  ("" | <LabelDef>) <DataEntry> ("" | <LF> <DataBody>)
+  <DataEntry> ::= <DataRawByteEntry> | <AsciiEntry>
+  <AsciiEntry> ::= '.asciz' WS <StringLiteral>
+  <DataRawByteEntry> ::= '.eword' <WS> <ListOfStringsAndInts>
+  | '.qword' <WS> <ListOfInts>
+  | '.hword' <WS> <ListOfFloatsAndInts>
+  |  '.word' <WS> <ListofFloatsAndInts>
+
+  <ListOfStringsAndInts> ::= (<StringLiteral> | <IntExpr>) ("" | <WS> <ListOfStringsAndInts>)
+  <ListOfFloatsAndInts> ::= (<Float> | <IntExpr>) ("" | <WS> <ListOfFloatsAndInts>) 
+  <ListOfInts> ::= <IntExpr> ("" | <WS> <ListOfInts>)
+
+
+  <Text> ::= '.text' <LF> <TextBody>
+  <TextBody> ::= ("" | <LabelDef>) (<Instruction> | <DataEntry>) <LF> ("" | <TextBody>)  
+
+  <Instruction> ::= <InstructionR0> | <InstructionR1>  | <InstructionR2> | <InstructionR3>
+
+  <InstructionR0> ::= <Mnemonic> <WS> <IntExpr>
+  <InstructionR1> ::= <Mnemonic> <WS> <Register> <WS> <IntExpr>
+  <InstructionR2> ::= <Mnemonic> <WS> <Register> <WS> <Register> <IntExpr>
+  <InstructionR3> ::= <Mnemonic> <WS> <Register> <WS> <Register> <WS> <IntExpr>
+
+
+  <Mnemonic> ::= MNEMONICS
+  <Register> ::= ('E' | 'Q' | 'H' | 'W') <Digit> ("" | <Digit>)
+
+  <StringLiteral> ::= '"' <AsciiList> '"'
+  <AsciiList> ::= <AsciiChar> ("" | <AsciiList>)
+  <AsciiChar> ::= ASCII
+
+  <IntExpr> ::= <SignedInteger> | <LabelExpr>
+
+  <LabelExpr> ::= ('@' | '#') <Label>
+  <LabelDef> ::= ':' <Label>
+  <Label> ::= NON_WHITESPACE_ASCII ("" | <Label>)
+
+  <Float> ::= <Integer> '.' <Integer>
+  <SignedInteger> ::= ("" | '-') <Integer>
+  <Integer> ::= <Digit> ("" | <Integer>)
+
+  <Letter> ::= 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'l' | 'm'
+       | 'n' | 'o' | 'p' | 'q' | 'r' | 's' | 't' | 'u' | 'v' | 'w' | 'x' | 'y' | 'z'
+       | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M'
+       | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z'
+
+
+  <Digit> ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
+  <WS> ::= ' '  ("" | <WS>)
+  <LF> ::= NEWLINE
+
+```
+
+### Comments
+RYVM Assembly uses the ';' character to specify a single line comment. The comment terminates
+once it reaches the newline character. There are no block comments.
+```
+; Here is a comment 
 LDI W0 10  ; here is a comment after an instruction
 
+```
+
+
+### Configuration
+All RYVM Assembly files start with setting the configuration of the VM. Here are the current configuration options.
+- .max_stack_size |num_bytes| 
+  - This tells the VM how many bytes to allocate for the stack when executing this program.
+  - You must use a non-negative integer literal for the |num_bytes| placeholder.
+  
+
+### .data section
+After this, you can include an optional .data section to list all global data for the executable. 
+
+#### Data Entry Types
+Here are the following allowed data types:
+- .eword
+  - Specifies the start of a list of 8-bit integer values. You can use positive or negative integer
+    literals here. You can also list string literals, though do note that the null character of the string literal will not be included in the data entry.
+- .qword
+  - Specifies the start of a list of 16-bit integer values. You can use positive or negative integer
+    literals here.
+- .hword
+  - Specifies the start of a list of 32-bit integer values. You can use positive or negative integer
+    literals here as well as floating point literals.
+- .word
+  - Specifies the start of a list of 64-bit integer values. You can use positive or negative integer
+    literals here as well as floating point literals. You can also insert the address of a label using the @label syntax, which inserts the 64-bit relative address of the label.
+- .asciz
+  - Specifies a single ASCII string literal to insert, automatically appending the null character (\0)
+    at the end of the string.
+
+### .text section
+
+After the .data section, you will insert a .text section, which contains the actual bytecode that
+will run on the VM. Here, you can insert both instructions and data entries. Each instruction
+contains a mnemonic followed by 1-3 arguments, which can either be registers or immediate values.
+
+Example:
+```
+.text
+
+; Instructions
+LDI W0 10  ;load immediate signed value 10 into W0
+LDI W1 5  ;load immediate signed value 10 into W0
+
+ADD W2 W0 W1 ; W2 = W0 + W1 = 10 + 5 = 15
+
+ADDI W2 W2 5 ; W2 = W2 + 5 = 15 + 5 = 20  
+
+B #end_literal_pool  ;jump over literal pool data entries to avoid executing them.
+
+;literal pools can be used to store memory addresses that cannot be reached by a PC-relative offset.
+.word 8
+.word 10
+.asciz "Hi there"
+
+:end_literal_pool
+
+SYS 0  ; a syscall with 24-bit immediate value 0. This exits the VM.
 ```
 
 ### Labels
@@ -340,64 +481,6 @@ would normally go.
 
     ```
 
-### Configuration
-All RYVM Assembly files start with setting the configuration of the VM. Here are the current configuration options.
-- .max_stack_size |num_bytes| 
-  - This tells the VM how many bytes to allocate for the stack when executing this program.
-  - You must use a non-negative integer literal for the |num_bytes| placeholder.
-  
-
-### .data section
-After this, you can include an optional .data section to list all global data for the executable. 
-
-#### Data Entry Types
-Here are the following allowed data types:
-- .eword
-  - Specifies the start of a list of 8-bit integer values. You can use positive or negative integer
-    literals here.
-- .qword
-  - Specifies the start of a list of 16-bit integer values. You can use positive or negative integer
-    literals here.
-- .hword
-  - Specifies the start of a list of 32-bit integer values. You can use positive or negative integer
-    literals here.
-- .word
-  - Specifies the start of a list of 64-bit integer values. You can use positive or negative integer
-    literals here OR insert the address of a label using the @label syntax, which inserts the 
-    64-bit relative address of the label.
-- .asciz
-  - Specifies a single ASCII string literal to insert, automatically appending the null character (\0)
-    at the end of the string.
-
-### .text section
-
-After the .data section, you will insert a .text section, which contains the actual bytecode that
-will run on the VM. Here, you can insert both instructions and data entries. Each instruction
-contains a mnemonic followed by 1-3 arguments, which can either be registers or immediate values.
-
-Example:
-```
-.text
-
-; Instructions
-LDI W0 10  ;load immediate signed value 10 into W0
-LDI W1 5  ;load immediate signed value 10 into W0
-
-ADD W2 W0 W1 ; W2 = W0 + W1 = 10 + 5 = 15
-
-ADDI W2 W2 5 ; W2 = W2 + 5 = 15 + 5 = 20  
-
-B #end_literal_pool  ;jump over literal pool data entries to avoid executing them.
-
-;literal pools can be used to store memory addresses that cannot be reached by a PC-relative offset.
-.word 8
-.word 10
-.asciz "Hi there"
-
-:end_literal_pool
-
-SYS 0  ; a syscall with 24-bit immediate value 0. This exits the VM.
-```
 
 ## RYVM Executable Format
 Due to this project being a work-in-progress, the format of the RYVM executable is rapidly changing

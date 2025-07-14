@@ -25,43 +25,6 @@ extern const char *RYVM_DATA_ASCIZ_HEADER;
 
 
 
-/*
-  Grammer:
-
-  Prog ::= Config LF Data LF Text
-
-  Config ::= MaxStackSize Integer
-
-
-  Data ::= '.data' LF DataBody
-  DataBody ::=  DataEntry ("" | LF DataBody)
-  DataEntry ::= DataRawByteEntry | AsciiEntry
-  AsciiEntry ::= '.asciz' WS '"' AsciiList '"'
-  DataRawByteEntry ::= ('.eword' | '.qword' | '.hword' | '.word') WS Integer
-  DataFloatEntry ::= ('.qwordf' | '.hwordf' | '.wordf') WS Float
-  DataBufferEntry ::= ('.buffer' ) WS Integer
-
-
-
-  Text ::= '.text' LF TextBody
-  TextBody ::= (Instruction | '.pool') LF ("" | TextBody)  ; .pool tells assembler to insert literal pool here instead of end of section
-
-  Instruction ::= Opcode WS ("" | InstructionArg) WS ("" | InstructionArg) WS ("" | InstructionArg)
-  InstructionArg ::= Register | Integer
-
-  Opcode ::= <all opcodes listed in opcodes.h>
-  Register ::= ('E' | 'Q' | 'H' | 'W') Digit ("" | Digit)
-
-  AsciiList ::= AsciiChar ("" | AsciiList)
-  AsciiChar ::= <Set of all ASCII chars> 
-
-  WS ::= ' ' ("" | WS)
-  Float ::= Integer '.' Integer
-  Integer ::= Digit ("" | Integer)
-  Digit ::= '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
-  LF ::= '\n'
-
-*/
 
 enum ryvm_assembler_mode {
   RYVM_ASSEMBLER_MODE_CONFIG,  //reads basic configuration of the VM (i.e. max stack size)

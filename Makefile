@@ -2,6 +2,7 @@
 # A simple makefile for managing build of project composed of C source files.
 #
 
+# Default compiler is clang. There is a "build_gcc" rule you can use for the GCC compiler
 CC=clang
 CFLAGS= -fcolor-diagnostics -fansi-escape-codes -g -std=c99 -Wall -Wextra -pedantic
 
@@ -28,8 +29,17 @@ OBJS=$(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
 
 
 
+
+
 #our current "compile and link" rule
 all: $(TARGET)
+
+
+# target specific values can be set like so
+build_gcc: CC=gcc 
+build_gcc: CFLAGS= -Wall -Wextra -pedantic -std=c99 -g 
+build_gcc: LDFLAGS = -lm
+build_gcc: all  # 
 
 
 # run the executable with a list of arguments
