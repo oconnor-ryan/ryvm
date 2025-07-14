@@ -25,14 +25,27 @@
 
 */
 
+enum ryvm_vm_arith_op {
+  RYVM_VM_ARITH_OP_ADD,
+  RYVM_VM_ARITH_OP_SUB,
+  RYVM_VM_ARITH_OP_MUL,
+  RYVM_VM_ARITH_OP_DIV,
+  RYVM_VM_ARITH_OP_REM,
+  RYVM_VM_ARITH_OP_SHL,
+  RYVM_VM_ARITH_OP_SHR,
+  RYVM_VM_ARITH_OP_AND,
+  RYVM_VM_ARITH_OP_OR,
+  RYVM_VM_ARITH_OP_XOR,
+};
+
 inline void ryvm_vm_byte_to_reg(uint8_t reg, uint8_t *reg_bytewidth, uint8_t *reg_num) {
   //registers are little endian, so they look like this in memory
   /*
         LSB                        MSB
-    B |--------| 
-    D |--------|--------|
-    Q |--------|--------|--------|--------|
-    O |--------|--------|--------|--------|--------|--------|--------|--------|
+    E |--------| 
+    Q |--------|--------|
+    H |--------|--------|--------|--------|
+    W |--------|--------|--------|--------|--------|--------|--------|--------|
 
   */
   //end bounds offset
@@ -169,6 +182,107 @@ int ryvm_vm_load(struct ryvm *vm, FILE *in) {
 }
 
 
+void ryvm_vm_unsigned_int_arith(struct ryvm *vm, uint8_t reg1_num, uint8_t reg1_bytewidth, uint8_t reg2_num, uint8_t reg2_bytewidth, uint8_t reg3_num, uint8_t reg3_bytewidth, enum ryvm_vm_arith_op op) {
+  //perform zero extension
+  uint64_t a = 0; 
+  uint64_t b = 0; 
+  //copy value to temporary vars, while also zero-extending them to 64 bits
+  memcpy(&a, &vm->gen_registers[reg2_num], reg2_bytewidth); 
+  memcpy(&b, &vm->gen_registers[reg3_num], reg3_bytewidth); 
+
+  uint64_t value;
+  switch(op) {
+    case RYVM_VM_ARITH_OP_ADD: value = a + b; break;
+    case RYVM_VM_ARITH_OP_SUB: value = a - b; break;
+    case RYVM_VM_ARITH_OP_MUL: value = a * b; break;
+    case RYVM_VM_ARITH_OP_DIV: value = a / b; break;
+    case RYVM_VM_ARITH_OP_REM: value = a % b; break;
+    case RYVM_VM_ARITH_OP_SHL: value = a << b; break;
+    case RYVM_VM_ARITH_OP_SHR: value = a >> b; break;
+    case RYVM_VM_ARITH_OP_AND: value = a & b; break;
+    case RYVM_VM_ARITH_OP_OR: value = a | b; break;
+    case RYVM_VM_ARITH_OP_XOR: value = a ^ b; break;
+    default: assert(0);
+  }
+
+  //only save the number of bytes specified in the bytewidth 
+  memcpy(&vm->gen_registers[reg1_num], &value, reg1_bytewidth); 
+}
+
+void ryvm_vm_signed_int_arith(struct ryvm *vm, uint8_t reg1_num, uint8_t reg1_bytewidth, uint8_t reg2_num, uint8_t reg2_bytewidth, uint8_t reg3_num, uint8_t reg3_bytewidth, enum ryvm_vm_arith_op op) {
+  int64_t a = ryvm_vm_helper_sign_extend_64((uint8_t*) &vm->gen_registers[reg2_num], reg2_bytewidth); 
+  int64_t b = ryvm_vm_helper_sign_extend_64((uint8_t*) &vm->gen_registers[reg3_num], reg3_bytewidth); 
+  int64_t value;
+  switch(op) {
+    case RYVM_VM_ARITH_OP_ADD: value = a + b; break;
+    case RYVM_VM_ARITH_OP_SUB: value = a - b; break;
+    case RYVM_VM_ARITH_OP_MUL: value = a * b; break;
+    case RYVM_VM_ARITH_OP_DIV: value = a / b; break;
+    case RYVM_VM_ARITH_OP_REM: value = a % b; break;
+    case RYVM_VM_ARITH_OP_SHL: value = a << b; break;
+    case RYVM_VM_ARITH_OP_SHR: value = a >> b; break;
+    case RYVM_VM_ARITH_OP_AND: value = a & b; break;
+    case RYVM_VM_ARITH_OP_OR: value = a | b; break;
+    case RYVM_VM_ARITH_OP_XOR: value = a ^ b; break;
+    default: assert(0);
+  }
+
+  memcpy(&vm->gen_registers[reg1_num], &value, reg1_bytewidth); 
+}
+
+void ryvm_vm_float_arith(struct ryvm *vm, uint8_t reg1_num, uint8_t reg1_bytewidth, uint8_t reg2_num, uint8_t reg2_bytewidth, uint8_t reg3_num, uint8_t reg3_bytewidth, enum ryvm_vm_arith_op op) {
+  uint8_t largest_bytewidth = reg2_bytewidth > reg3_bytewidth ? reg2_bytewidth : reg3_bytewidth;
+
+  uint64_t result;
+
+  //we we perform a 64-bit floating point operation
+  if(largest_bytewidth > 4) {
+    double a = ryvm_vm_helper_reg_to_double(vm->gen_registers[reg2_num], reg2_bytewidth);
+    double b = ryvm_vm_helper_reg_to_double(vm->gen_registers[reg3_num], reg3_bytewidth);
+
+    double value;
+    switch(op) {
+      case RYVM_VM_ARITH_OP_ADD: value = a + b; break;
+      case RYVM_VM_ARITH_OP_SUB: value = a - b; break;
+      case RYVM_VM_ARITH_OP_MUL: value = a * b; break;
+      case RYVM_VM_ARITH_OP_DIV: value = a / b; break;
+      case RYVM_VM_ARITH_OP_REM: value = fmod(a, b); break;
+      default: assert(0);
+    }
+
+    memcpy(&result, &value, 8);
+  } 
+  //TODO: Implement 16-bit IEEE 754 floating point and find a 8-bit floating point.
+  else {
+    float a = ryvm_vm_helper_reg_to_float(vm->gen_registers[reg2_num], reg2_bytewidth);
+    float b = ryvm_vm_helper_reg_to_float(vm->gen_registers[reg3_num], reg3_bytewidth);
+
+    float value;
+    switch(op) {
+      case RYVM_VM_ARITH_OP_ADD: value = a + b; break;
+      case RYVM_VM_ARITH_OP_SUB: value = a - b; break;
+      case RYVM_VM_ARITH_OP_MUL: value = a * b; break;
+      case RYVM_VM_ARITH_OP_DIV: value = a / b; break;
+      case RYVM_VM_ARITH_OP_REM: value = fmod(a, b); break;
+      default: assert(0);
+    }
+
+    memcpy(&result, &value, 4);
+  }
+
+  //note that depending on the bytewidth of the result register, we may need to 
+  //cast the original result from a float to a double or vise versa.
+
+  if(reg1_bytewidth > 4) {
+    double res = ryvm_vm_helper_reg_to_double(result, largest_bytewidth);
+    memcpy(vm->gen_registers+reg1_num, &res, 8);
+  } else {
+    float res = ryvm_vm_helper_reg_to_float(result, largest_bytewidth);
+    memcpy(vm->gen_registers+reg1_num, &res, 4);
+  }
+  
+}
+
 int64_t ryvm_vm_run(struct ryvm *vm) {
   //ryvm_vm_pc_set(vm, 0);
   ryvm_vm_pc_set(vm, (uint64_t) (vm->data_and_code + vm->text_section_start));
@@ -202,68 +316,6 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
     ryvm_vm_byte_to_reg(ins[1], &reg1_bytewidth, &reg1_num);
     ryvm_vm_byte_to_reg(ins[2], &reg2_bytewidth, &reg2_num);
     ryvm_vm_byte_to_reg(ins[3], &reg3_bytewidth, &reg3_num);
-
-
-    //Because most arithmetic and comparison operations are programmed almost exactly the same
-    //with the exception of the operator character used, we will use macros
-
-    // TODO, convert Macros to functions, and use enums to represent operators.
-    // This is because most debuggers cannot step though code generated by macros, since no 
-    // dubugging information (i.e. line numbers) can be easily attached to them.
-
-
-    //we dont have to worry about the register bytewidth for the source, 
-    //since the intermediate value does not modify any registers
-    #define RYVM_MACRO_ARITH_BIN_OP(op, type) { \
-      type a = 0; \
-      type b = 0; \
-      /* Due to an issue where casting can change the underlying bits, we use memcpy instead*/ \
-      /* This also allows us to copy specific bytes from a register to conform to the requested bytewidth of the registers*/ \
-      memcpy(&a, &vm->gen_registers[reg2_num], reg2_bytewidth); \
-      memcpy(&b, &vm->gen_registers[reg3_num], reg3_bytewidth); \
-      type value = a op b; \
-      uint8_t end_offset_dest = reg1_bytewidth; \
-      memcpy(&vm->gen_registers[reg1_num], &value, end_offset_dest); \
-      break; \
-    }
-
-    
-
-    //floating points require special care since you cannot "sign-extend" them by appending 0's to the bit representation.
-    //casting from float to double and vise versa is more complex, so we'll let C do it for us using explicit types
-    //and casting.
-    #define RYVM_MACRO_ARITH_FLOAT_BIN_OP_BODY(op, type1, type2) { \
-      type1 a = 0; \
-      type2 b = 0; \
-      memcpy(&a, &vm->gen_registers[reg2_num], reg2_bytewidth); \
-      memcpy(&b, &vm->gen_registers[reg3_num], reg3_bytewidth); \
-      /* Depending on the bytewidth of the dest register, we need to perform a single or double precision floating point operation*/ \
-      /* We must do this because you cannot easily "sign-extend" a floating point number like you can with 2's complement integers*/ \
-      if(reg1_bytewidth > 4) { \
-        double value = (double) a op (double) b; \
-        uint8_t end_offset_dest = reg1_bytewidth; \
-        memcpy(&vm->gen_registers[reg1_num], &value, end_offset_dest); \
-      } else { \
-        float value = (float) a op (float) b; \
-        uint8_t end_offset_dest = reg1_bytewidth; \
-        memcpy(&vm->gen_registers[reg1_num], &value, end_offset_dest); \
-      } \
-    }
-
-    //we do need to worry about about bytewidth of source registers for floating point
-    //since the format of the floating point number makes it much harder only add certain bytes
-    #define RYVM_MACRO_ARITH_FLOAT_BIN_OP(op) { \
-      if(reg2_bytewidth > 4 && reg3_bytewidth > 4) \
-        RYVM_MACRO_ARITH_FLOAT_BIN_OP_BODY(op, double, double) \
-      else if(reg2_bytewidth > 4 && reg3_bytewidth <= 4) \
-        RYVM_MACRO_ARITH_FLOAT_BIN_OP_BODY(op, double, float) \
-      else if(reg2_bytewidth <= 4 && reg3_bytewidth > 4) \
-        RYVM_MACRO_ARITH_FLOAT_BIN_OP_BODY(op, float, double) \
-      else \
-        RYVM_MACRO_ARITH_FLOAT_BIN_OP_BODY(op, float, float) \
-      break; \
-    }
-
 
 
     switch(op) {
@@ -374,13 +426,13 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
       }
 
       /* Bitwise operations */
-      case RYVM_OP_AND: RYVM_MACRO_ARITH_BIN_OP(&, uint64_t)
-      case RYVM_OP_OR: RYVM_MACRO_ARITH_BIN_OP(|, uint64_t)
-      case RYVM_OP_XOR: RYVM_MACRO_ARITH_BIN_OP(^, uint64_t)
+      case RYVM_OP_AND: ryvm_vm_unsigned_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_AND); break;
+      case RYVM_OP_OR: ryvm_vm_unsigned_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_OR); break;
+      case RYVM_OP_XOR: ryvm_vm_unsigned_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_XOR); break;
 
       //note that right-hand operand will ALWAYS BE TREATED AS UNSIGNED, even if it wasnt intended
-      case RYVM_OP_SHL: RYVM_MACRO_ARITH_BIN_OP(<<, uint64_t)
-      case RYVM_OP_SHR: RYVM_MACRO_ARITH_BIN_OP(>>, uint64_t)
+      case RYVM_OP_SHL: ryvm_vm_unsigned_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_SHL); break;
+      case RYVM_OP_SHR: ryvm_vm_unsigned_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_SHR); break;
 
       // If bit in 3rd reg is 0, keep original bit in 2nd reg. If the bit in 3rd reg is 1, clear it to 0
       case RYVM_OP_BIC: {
@@ -404,6 +456,8 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
 
       /* Arithmetic For Signed/Unsigned Integers */
 
+
+
       case RYVM_OP_ADDI: {
         uint64_t result = 0;
         int8_t imm = ins[3];
@@ -421,66 +475,25 @@ int64_t ryvm_vm_run(struct ryvm *vm) {
       }
 
 
-      //use uint64_t for unsigned arithmetic and int64_t for signed arithmetic.
-      //We use uint64_t and int64_t instead of smaller sizes so that we 
-      //can sign-extend all integers to 64 bits before performing arithmetic on them. 
-      case RYVM_OP_ADD: RYVM_MACRO_ARITH_BIN_OP(+, uint64_t)
-      case RYVM_OP_SUB: RYVM_MACRO_ARITH_BIN_OP(-, uint64_t)
-      case RYVM_OP_MUL: RYVM_MACRO_ARITH_BIN_OP(*, uint64_t)
-      case RYVM_OP_MULU: RYVM_MACRO_ARITH_BIN_OP(*, int64_t)
-      case RYVM_OP_DIV: RYVM_MACRO_ARITH_BIN_OP(/, uint64_t)
-      case RYVM_OP_DIVU: RYVM_MACRO_ARITH_BIN_OP(/, int64_t)
-      case RYVM_OP_REM: RYVM_MACRO_ARITH_BIN_OP(%, uint64_t)
-      case RYVM_OP_REMU: RYVM_MACRO_ARITH_BIN_OP(%, int64_t)
+      //note to use unsigned arithmetic for addition and subtraction
+      //since 2's complement makes these operations identical regardless of sign or unsigned
+      case RYVM_OP_ADD: ryvm_vm_unsigned_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_ADD); break;
+      case RYVM_OP_SUB: ryvm_vm_unsigned_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_SUB); break;
+
+      case RYVM_OP_MUL: ryvm_vm_signed_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_MUL); break;
+      case RYVM_OP_MULU: ryvm_vm_unsigned_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_MUL); break;
+      case RYVM_OP_DIV: ryvm_vm_signed_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_DIV); break;
+      case RYVM_OP_DIVU: ryvm_vm_unsigned_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_DIV); break;
+      case RYVM_OP_REM: ryvm_vm_signed_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_REM); break;
+      case RYVM_OP_REMU: ryvm_vm_unsigned_int_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_REM); break;
 
 
       /* Arithmetic For 32-bit and 64-bit floating point numbers */
-      case RYVM_OP_ADDF: RYVM_MACRO_ARITH_FLOAT_BIN_OP(+)
-      case RYVM_OP_SUBF: RYVM_MACRO_ARITH_FLOAT_BIN_OP(-)
-      case RYVM_OP_MULF: RYVM_MACRO_ARITH_FLOAT_BIN_OP(*)
-      case RYVM_OP_DIVF: RYVM_MACRO_ARITH_FLOAT_BIN_OP(/)
-
-      //there is no builtin C operator to perform modulus operation on floating point, 
-      //so we will need to use fmod() for doubles and fmodf for floats
-      case RYVM_OP_REMF: {
-        if(reg2_bytewidth > 4 && reg3_bytewidth > 4) {
-          double a = 0; 
-          double b = 0; 
-          memcpy(&a, &vm->gen_registers[reg2_num], reg2_bytewidth); 
-          memcpy(&b, &vm->gen_registers[reg3_num], reg3_bytewidth); 
-          double value = fmod(a, b);
-          uint8_t end_offset_dest = reg1_bytewidth; 
-          memcpy(&vm->gen_registers[reg1_num], &value, end_offset_dest); 
-        }
-        //note that if 1 register is a float32 while the other is a float64, the float32 gets 
-        //promoted to a float64
-        else if(reg2_bytewidth > 4 && reg3_bytewidth <= 4) {
-          double a = 0; 
-          float b = 0; 
-          memcpy(&a, &vm->gen_registers[reg2_num], reg2_bytewidth); 
-          memcpy(&b, &vm->gen_registers[reg3_num], reg3_bytewidth); 
-          double value = fmod(a, (double) b);
-          uint8_t end_offset_dest = reg1_bytewidth; 
-          memcpy(&vm->gen_registers[reg1_num], &value, end_offset_dest); 
-        } else if(reg2_bytewidth <= 4 && reg3_bytewidth > 4) {
-          float a = 0; 
-          double b = 0; 
-          memcpy(&a, &vm->gen_registers[reg2_num], reg2_bytewidth); 
-          memcpy(&b, &vm->gen_registers[reg3_num], reg3_bytewidth); 
-          double value = fmod((double) a, b);
-          uint8_t end_offset_dest = reg1_bytewidth; 
-          memcpy(&vm->gen_registers[reg1_num], &value, end_offset_dest); 
-        } else {
-          float a = 0; 
-          float b = 0; 
-          memcpy(&a, &vm->gen_registers[reg2_num], reg2_bytewidth); 
-          memcpy(&b, &vm->gen_registers[reg3_num], reg3_bytewidth); 
-          float value = fmodf(a, b);
-          uint8_t end_offset_dest = reg1_bytewidth; 
-          memcpy(&vm->gen_registers[reg1_num], &value, end_offset_dest); 
-        }
-        break; 
-      }
+      case RYVM_OP_ADDF: ryvm_vm_float_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_ADD); break;
+      case RYVM_OP_SUBF: ryvm_vm_float_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_SUB); break;
+      case RYVM_OP_MULF: ryvm_vm_float_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_MUL); break;
+      case RYVM_OP_DIVF: ryvm_vm_float_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_DIV); break;
+      case RYVM_OP_REMF: ryvm_vm_float_arith(vm, reg1_num, reg1_bytewidth, reg2_num, reg2_bytewidth, reg3_num, reg3_bytewidth, RYVM_VM_ARITH_OP_REM); break;
 
       /* Comparisons for signed/unsigned integers and floating point numbers */
 

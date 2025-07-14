@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+//If every element within a union is the same size, no implicit conversion will occur, leaving 
+//the bit representation unaltered, though the size restriction limits its usefulness.
 union num64 {
   uint64_t i;
   int64_t s;
@@ -15,6 +17,10 @@ union num32 {
   float f;
 };
 
+//note that if you use this union, accessing values of different sizes will cause an implicit
+//conversion. Example, accessing a 32-bit float after you assigned a 64-bit float to it will
+//cause the 64-bit float to be implicitly converted to 32-bit rather than reading the preset bits
+//as a 32-bit.
 union num {
   uint64_t u64;
   int64_t s64;

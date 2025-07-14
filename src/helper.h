@@ -21,6 +21,15 @@
 #define RYVM_INS_SIZE 4
 
 
+float ryvm_vm_helper_reg_to_float(uint64_t reg_value, uint8_t bytewidth);
+
+
+double ryvm_vm_helper_reg_to_double(uint64_t reg_value, uint8_t bytewidth);
+
+
+
+
+int64_t ryvm_vm_helper_sign_extend_64(uint8_t *bytes, uint8_t num_bytes);
 int32_t ryvm_vm_helper_cast_int_24_to_32(uint8_t bytes[3]);
 
 
